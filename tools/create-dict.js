@@ -211,9 +211,8 @@ const wordLists = {
   },
 };
 
-async function createDictionary(zip, locale, size) {
+export async function createDictionary(words, targetPath, description, meta) {
   const generateLists = async function*() {
-    const filenames = wordLists[locale][size];
     const lists = {
       '1': [],
       '2': [],
@@ -223,20 +222,11 @@ async function createDictionary(zip, locale, size) {
       '6': [],
       '7': [],
     };
-    for (const filename of filenames) {
-      console.log(`Processing ${filename}`);
-      const text = await zip.extractTextFile(`final/${filename}`, 'ascii');
-      const lines = text.split(/\r?\n/);
-      for (const line of lines) {
-        const word = line.trim();
-        if (!/^[a-z]+$/i.test(word)) {
-          continue;
-        }
-        const count = countSyllable(word);
-        if (count >= 1 && count <= 7) {
-          const list = lists[count];
-          list.push(word);
-        }
+    for await (const word of words) {
+      const count = countSyllable(word);
+      if (count >= 1 && count <= 7) {
+        const list = lists[count];
+        list.push(word);
       }
     }
     for (let count = 1; count <= 7; count++) {
@@ -255,25 +245,23 @@ async function createDictionary(zip, locale, size) {
       }
     }
     console.log(``);
-    console.log(`Word-lists for ${locale}, ${size}:`);
+    console.log(`Word-lists for ${description}:`);
     console.log(``);
-    const words = {};
+    const counts = {};
     let total = 0;
     for (let count = 1; count <= 7; count++) {
       const list = lists[count];
-      words[`${count}-syllable`] = list.length;
+      counts[`${count}-syllable`] = list.length;
       total += list.length;
       console.log(`${count}-syllable words: ${list.length}`);
     }
     console.log(`Total: ${total}`);
     console.log(``);
 
-    const meta = { locale, size, words };
     const name = `meta.json`;
-    const data = Buffer.from(JSON.stringify(meta, undefined, 2));
+    const data = Buffer.from(JSON.stringify({ ...meta, words: counts }, undefined, 2));
     yield { name, data, isText: true };
   };
-  const targetPath = resolve(`../dict/${locale}-${size}.zip`);
   const zipStream = createZip(generateLists());
   const zipFileStream = createWriteStream(targetPath);
   await pipe(zipStream, zipFileStream);
@@ -286,6 +274,21 @@ function countSyllable(word) {
   const phonemes = phonesForWord(lowercase)[0];
   if (phonemes) {
     return syllableCount(phonemes);
+  }
+}
+
+async function *extractWords(zip, locale, size) {
+  const filenames = wordLists[locale][size];
+  for (const filename of filenames) {
+    console.log(`Processing ${filename}`);
+    const text = await zip.extractTextFile(`final/${filename}`, 'ascii');
+    const lines = text.split(/\r?\n/);
+    for (const line of lines) {
+      const word = line.trim();
+      if (/^[a-z]+$/i.test(word)) {
+        yield word;
+      }
+    }
   }
 }
 
@@ -305,11 +308,25 @@ function resolve(path) {
   return (new URL(path, import.meta.url)).pathname;
 }
 
+async function createDictionaries(locales, sizes) {
+  const zipPath = resolve('./scowl-2020.12.07.zip');
+  const zip = new ZipFile(zipPath);
+  await zip.open();
+  for (const locale of locales) {
+    for (const size of sizes) {
+      const targetPath = resolve(`../dict/${locale}-${size}.zip`);
+      const words = extractWords(zip, locale, size);
+      await createDictionary(words, targetPath, `${locale}, ${size}`, { locale, size });
+    }
+  }
+  await zip.close();
+}
+
 const availableLocales = [ 'en-US', 'en-AU', 'en-GB', 'en-CA' ];
 const availableSizes = [ 'small', 'medium', 'large', 'huge', 'insane' ];
 
-async function run() {
-  const [ localeReq, sizeReq ] = process.argv.slice(2);
+const [ script, localeReq, sizeReq ] = process.argv.slice(1);
+if (script == resolve('')) {
   const locales = availableLocales.filter((locale) => {
     const l1 = (localeReq || '').toLowerCase();
     const l2 = locale.toLowerCase();
@@ -329,17 +346,7 @@ async function run() {
     console.log(`Use "all" to select all locales or sizes`);
     process.exit(0);
   }
-  const zipPath = resolve('./scowl-2020.12.07.zip');
-  const zip = new ZipFile(zipPath);
-  await zip.open();
-  for (const locale of locales) {
-    for (const size of sizes) {
-      await createDictionary(zip, locale, size);
-    }
-  }
-  await zip.close();
+  createDictionaries(locales, sizes).catch((err) => {
+    console.error(err);
+  });
 }
-
-run().catch((err) => {
-  console.error(err);
-});

@@ -17,12 +17,7 @@ export class ZipFile {
   }
 
   async close() {
-    if (this.file) {
-      await this.file.close();
-      this.file = null;
-      this.size = 0;
-      this.centralDirectory = null;
-    }
+    await this.file.close();
   }
 
   async extractFile(name) {
