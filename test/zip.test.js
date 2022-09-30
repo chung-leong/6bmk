@@ -1,8 +1,7 @@
 import Chai, { expect } from 'chai';
 import ChaiAsPromised from 'chai-as-promised';
-import { Readable } from 'stream';
+import { Readable, pipeline } from 'stream';
 import { createReadStream, createWriteStream } from 'fs';
-import { pipeline } from 'stream';
 
 Chai.use(ChaiAsPromised);
 

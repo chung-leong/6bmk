@@ -33,7 +33,16 @@ export class ZipFile {
     if (!record) {
       throw new Error(`Cannot find file in archive: ${name}`);
     }
-    const { dataOffset, compressedSize, compression } = record;
+    const { localHeaderOffset, compressedSize, compression } = record;
+    const header = Buffer.alloc(30);
+    await this.file.read(header, 0, 30, localHeaderOffset);
+    const signature = header.readUInt32LE();
+    if (signature !== 0x04034b50) {
+      throw new Error('Invalid file header');
+    }
+    const nameLength = header.readUInt16LE(26);
+    const extraLength = header.readUInt16LE(28);
+    const dataOffset = localHeaderOffset + 30 + nameLength + extraLength;
     const data = Buffer.alloc(compressedSize);
     const { bytesRead } = await this.file.read(data, 0, compressedSize, dataOffset);
     if (bytesRead !== compressedSize) {
@@ -43,9 +52,9 @@ export class ZipFile {
     return uncompressedData;
   }
 
-  async extractTextFile(name) {
+  async extractTextFile(name, encoding = 'utf8') {
     const buffer = await this.extractFile(name);
-    return buffer.toString();
+    return buffer.toString(encoding);
   }
 
   async extractJSONFile(name) {
@@ -108,13 +117,12 @@ export class ZipFile {
       const uncompressedSize = header.readUInt32LE(24);
       const name = extractName(header, 46, nameLength, flags);
       const localHeaderOffset = header.readUInt32LE(42);
-      const dataOffset = localHeaderOffset + 30 + nameLength;
       records.push({
         name,
         compression,
         compressedSize,
         uncompressedSize,
-        dataOffset,
+        localHeaderOffset,
       });
       index += headerSize;
     }
