@@ -1,5 +1,126 @@
 import { Readable } from 'stream';
+import { open } from 'fs/promises';
 import { inflateRaw, deflateRaw } from 'zlib';
+
+export class ZipFile {
+  constructor(path) {
+    this.path = path;
+    this.file = null;
+    this.size = 0;
+    this.centralDirectory = null;
+  }
+
+  async open() {
+    this.file = await open(this.path);
+    this.size = (await this.file.stat()).size;
+    this.centralDirectory = await this.loadCentralDirectory();
+  }
+
+  async close() {
+    if (this.file) {
+      await this.file.close();
+      this.file = null;
+      this.size = 0;
+      this.centralDirectory = null;
+    }
+  }
+
+  async extractFile(name) {
+    if (!this.centralDirectory) {
+      throw new Error('File has not been opened yet');
+    }
+    const record = this.centralDirectory.find(r => r.name === name);
+    if (!record) {
+      throw new Error(`Cannot find file in archive: ${name}`);
+    }
+    const { dataOffset, compressedSize, compression } = record;
+    const data = Buffer.alloc(compressedSize);
+    const { bytesRead } = await this.file.read(data, 0, compressedSize, dataOffset);
+    if (bytesRead !== compressedSize) {
+      throw new Error('Cannot read the correct number of bytes');
+    }
+    const uncompressedData = await decompressData([ data ], compression);
+    return uncompressedData;
+  }
+
+  async extractTextFile(name) {
+    const buffer = await this.extractFile(name);
+    return buffer.toString();
+  }
+
+  async extractJSONFile(name) {
+    const text = await this.extractTextFile(name);
+    return JSON.parse(text);
+  }
+
+  async findCentralDirectory() {
+    const headerSize = 22;
+    const header = Buffer.alloc(headerSize);
+    const maxCommentLength = 65535;
+    const offsetLimit = Math.max(0, this.size - headerSize - maxCommentLength);
+    let offset = this.size - headerSize;
+    let found = false;
+    while (!found && offset >= offsetLimit) {
+      await this.file.read(header, 0, headerSize, offset);
+      const signature = header.readUInt32LE();
+      if (signature === 0x06054b50) {
+        found = true;
+      } else {
+        // the byte sequence is 0x50 0x4b 0x05 0x06
+        const firstByte = signature & 0x000000FF;
+        switch (firstByte) {
+          case 0x06: offset -= 3; break;
+          case 0x05: offset -= 2; break;
+          case 0x4b: offset -= 1; break;
+          default: offset -= 4;
+        }
+      }
+    }
+    if (found) {
+      const count = header.readInt16LE(10);
+      const size = header.readUInt32LE(12);
+      const offset = header.readUInt32LE(16);
+      return { count, size, offset };
+    } else {
+      throw new Error('Unable to find EOCD record');
+    }
+  }
+
+  async loadCentralDirectory() {
+    const records = [];
+    const { size, offset } = await this.findCentralDirectory();
+    const buffer = Buffer.alloc(size);
+    await this.file.read(buffer, 0, size, offset);
+    let index = 0;
+    while (index < size) {
+      const signature = buffer.readUInt32LE(index);
+      if (signature !== 0x02014b50) {
+        throw new Error('Invalid CD record');
+      }
+      const nameLength = buffer.readUInt16LE(index + 28);
+      const extraLength = buffer.readUInt16LE(index + 30);
+      const commentLength = buffer.readUInt16LE(index + 32)
+      const headerSize = 46 + nameLength + extraLength + commentLength;
+      const header = getBufferSlice(buffer, index, headerSize);
+      const flags = header.readUInt16LE(8);
+      const compression = header.readUInt16LE(10);
+      const compressedSize = header.readUInt32LE(20);
+      const uncompressedSize = header.readUInt32LE(24);
+      const name = extractName(header, 46, nameLength, flags);
+      const localHeaderOffset = header.readUInt32LE(42);
+      const dataOffset = localHeaderOffset + 30 + nameLength;
+      records.push({
+        name,
+        compression,
+        compressedSize,
+        uncompressedSize,
+        dataOffset,
+      });
+      index += headerSize;
+    }
+    return records;
+  }
+}
 
 export function modifyZip(stream, cb) {
   const processStream = async function*() {
@@ -36,7 +157,7 @@ export function modifyZip(stream, cb) {
               const transform = cb(name) || null;
               if (transform instanceof Function) {
                 // callback wants a look at the data
-                extraction = { header, flags, name, compression, transform, data: [] };
+                extraction = { header, flags, name, compression, transform, extraLength, data: [] };
                 omitDataDescriptor = true;
               } else {
                 // just output the header
@@ -126,11 +247,13 @@ export function modifyZip(stream, cb) {
           index += data.length;
           dataRemaining -= data.length;
           if (dataRemaining === 0 && extraction) {
-            const { header, flags, name, compression, transform, data } = extraction;
+            const { header, flags, name, compression, transform, data, extraLength } = extraction;
             const uncompressedData = await decompressData(data, compression);
             let transformedData = await transform(uncompressedData);
-            if (!(transformedData instanceof Buffer) && transformedData != null) {
-              transformedData = Buffer.from(transformedData);
+            if (transformedData == null) {
+              transformedData = Buffer.alloc(0);
+            } else if (!(transformedData instanceof Buffer) && transformedData !== false) {
+              transformedData = Buffer.from(transformedData.toString());
             }
             if (transformedData instanceof Buffer) {
               const crc32 = calcuateCRC32(transformedData);
@@ -147,12 +270,13 @@ export function modifyZip(stream, cb) {
               header.writeUInt32LE(compressedSize, 18);
               header.writeUInt32LE(uncompressedSize, 22);
               // output the header and transformed data
-              currentOffset += header.length + compressedData.length;
+              currentOffset += header.length;
               yield header;
+              currentOffset += compressedData.length;
               yield compressedData;
-            } else if (transformedData !== null) {
+            } else if (transformedData !== false) {
               stream.destroy();
-              throw new Error('Transform function did not return a Buffer object or null');
+              throw new Error('Transform function did not return a Buffer object or false');
             }
             extraction = null;
           }

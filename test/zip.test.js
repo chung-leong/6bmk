@@ -1,16 +1,20 @@
-import { expect } from 'chai';
+import Chai, { expect } from 'chai';
+import ChaiAsPromised from 'chai-as-promised';
 import { Readable } from 'stream';
 import { createReadStream, createWriteStream } from 'fs';
 import { pipeline } from 'stream';
 
+Chai.use(ChaiAsPromised);
+
 import {
   modifyZip,
   createZip,
+  ZipFile,
 } from '../src/zip.js';
 
 describe('Zip functions', function() {
   describe('#modifyZip()', function() {
-    it ('should find files inside archive', async function() {
+    it('should find files inside archive', async function() {
       const names = [];
       const path = resolve('./files/three-files.zip');
       const fileStream = createReadStream(path);
@@ -22,7 +26,7 @@ describe('Zip functions', function() {
       expect(names).to.contains('three-files/donut.txt');
       expect(names).to.contains('three-files/malgorzata-socha.jpg');
     })
-    it ('should find extract contents from small uncompressed file', async function() {
+    it('should find extract contents from small uncompressed file', async function() {
       const path = resolve('./files/three-files.zip');
       const fileStream = createReadStream(path);
       const chunkedStream = createChunkyStream(fileStream, 1024);
@@ -38,14 +42,14 @@ describe('Zip functions', function() {
       for await (const chunk of outStream) {}
       expect(text).to.contains('${placeholder}');
     })
-    it ('should remove file when transform function return null', async function() {
+    it('should remove file when transform function return false', async function() {
       const path = resolve('./files/three-files.zip');
       const fileStream = createReadStream(path);
       const chunkedStream = createChunkyStream(fileStream, 1024);
       const outStream1 = modifyZip(chunkedStream, (name) => {
         if (name === 'three-files/malgorzata-socha.jpg') {
           return async (buffer) => {
-            return null;
+            return false;
           };
         }
       });
@@ -57,7 +61,7 @@ describe('Zip functions', function() {
       expect(names).to.contains('three-files/donut.txt');
       expect(names).to.not.contains('three-files/malgorzata-socha.jpg');
     })
-    it ('should replace file contents', async function() {
+    it('should replace file contents', async function() {
       const path = resolve('./files/three-files.zip');
       const fileStream = createReadStream(path);
       const chunkedStream = createChunkyStream(fileStream, 1024);
@@ -82,7 +86,7 @@ describe('Zip functions', function() {
       for await (const chunk of outStream2) {}
       expect(text).to.contains(replacement);
     })
-    it ('should replace contents of larger compressed file', async function() {
+    it('should replace contents of larger compressed file', async function() {
       const path = resolve('./files/three-files.zip');
       const fileStream = createReadStream(path);
       const chunkedStream = createChunkyStream(fileStream, 1024);
@@ -108,7 +112,7 @@ describe('Zip functions', function() {
       for await (const chunk of outStream2) {}
       expect(text).to.contains(replacement);
     })
-    it ('should find file with unicode name', async function() {
+    it('should find file with unicode name', async function() {
       const names = [];
       const path = resolve('./files/unicode.zip');
       const fileStream = createReadStream(path);
@@ -117,7 +121,7 @@ describe('Zip functions', function() {
       for await (const chunk of outStream) {}
       expect(names).to.contains('szczęście.txt');
     })
-    it ('should produce valid PowerPoint file', async function() {
+    it('should produce valid PowerPoint file', async function() {
       const site = 'https://6beer.mk';
       const haiku = [
         [ 'Harass explosives', 'Otherworldly paul playoff', 'Stalks polje weeny' ],
@@ -159,7 +163,7 @@ describe('Zip functions', function() {
     })
   })
   describe('#createZip', function() {
-    it ('should create a valid zip file', async function() {
+    it('should create a valid zip file', async function() {
       const inText1 = 'Hello world\n';
       const inText2 = inText1.repeat(300);
       const zipStream = createZip([
@@ -181,6 +185,71 @@ describe('Zip functions', function() {
       const zipFileStream = createWriteStream(zipPath);
       await pipe(outStream, zipFileStream);
       expect(outText).to.equal(inText2);
+    })
+    it('should accept an async generator as input', async function() {
+      const inText1 = 'Hello world\n';
+      const inText2 = inText1.repeat(300);
+      const f = async function*() {
+        await delay(30);
+        yield { name: 'hello1.txt', data: Buffer.from(inText1) };
+        await delay(30);
+        yield { name: 'hello2.txt', data: Buffer.from(inText2), isText: true };
+        await delay(30);
+        yield { name: 'world/', isFile: false };
+      };
+      const zipStream = createZip(f());
+      let outText;
+      const outStream = modifyZip(zipStream, (name) => {
+        if (name === 'hello2.txt') {
+          return async (buffer) => {
+            outText = buffer.toString();
+            return buffer;
+          };
+        }
+      });
+      // need to check file manually
+      const zipPath = resolve('./files/output/test2.zip');
+      const zipFileStream = createWriteStream(zipPath);
+      await pipe(outStream, zipFileStream);
+      expect(outText).to.equal(inText2);
+    })
+  })
+  describe('ZipFile', function() {
+    describe('#open()', function() {
+      it('should load the central directory', async function() {
+        const path = resolve('./files/three-files.zip');
+        const zip = new ZipFile(path);
+        await zip.open();
+        const cd = zip.centralDirectory;
+        await zip.close();
+        expect(cd[3]).to.have.property('name', 'three-files/malgorzata-socha.jpg');
+        expect(cd[1]).to.have.property('uncompressedSize', 32474);
+      })
+    })
+    describe('#extractTextFile', function() {
+      it('should extract a text file', async function() {
+        const path = resolve('./files/three-files.zip');
+        const zip = new ZipFile(path);
+        await zip.open();
+        const text = await zip.extractTextFile('three-files/LICENSE.txt');
+        await zip.close();
+        expect(text).to.include('GNU');
+      })
+      it('should extract a text file with Unicode name', async function() {
+        const path = resolve('./files/unicode.zip');
+        const zip = new ZipFile(path);
+        await zip.open();
+        const text = await zip.extractTextFile('szczęście.txt');
+        await zip.close();
+        expect(text).to.include('szczęście');
+      })
+      it('should throw when file is not in archive', async function() {
+        const path = resolve('./files/unicode.zip');
+        const zip = new ZipFile(path);
+        await zip.open();
+        await expect(zip.extractTextFile('cześć.txt')).to.eventually.be.rejected;
+        await zip.close();
+      })
     })
   })
 })
@@ -206,6 +275,10 @@ async function pipe(source, dest) {
       }
     });
   });
+}
+
+async function delay(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 function resolve(path) {
