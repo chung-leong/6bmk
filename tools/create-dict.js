@@ -322,8 +322,8 @@ async function createDictionaries(locales, sizes) {
   await zip.close();
 }
 
-const availableLocales = [ 'en-US', 'en-AU', 'en-GB', 'en-CA' ];
-const availableSizes = [ 'small', 'medium', 'large', 'huge', 'insane' ];
+export const availableLocales = [ 'en-US', 'en-AU', 'en-GB', 'en-CA' ];
+export const availableSizes = [ 'small', 'medium', 'large', 'huge', 'insane' ];
 
 const [ script, localeReq, sizeReq ] = process.argv.slice(1);
 if (script == resolve('')) {
