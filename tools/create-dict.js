@@ -248,20 +248,26 @@ async function createDictionary(zip, locale, size) {
         yield { name: dirName, isFile: false };
         for (let i = 0; i < list.length; i += perFile) {
           const slice = list.slice(i, i + perFile);
-          const name = dirName + `${i}.json`;
-          const data = Buffer.from(JSON.stringify(slice));
+          const name = dirName + `${i}.txt`;
+          const data = Buffer.from(slice.join('\n'));
           yield { name, data, isText: true };
         }
       }
     }
     console.log(``);
     console.log(`Word-lists for ${locale}, ${size}:`);
+    console.log(``);
     const words = {};
+    let total = 0;
     for (let count = 1; count <= 7; count++) {
       const list = lists[count];
       words[`${count}-syllable`] = list.length;
+      total += list.length;
       console.log(`${count}-syllable words: ${list.length}`);
     }
+    console.log(`Total: ${total}`);
+    console.log(``);
+
     const meta = { locale, size, words };
     const name = `meta.json`;
     const data = Buffer.from(JSON.stringify(meta, undefined, 2));
@@ -271,7 +277,8 @@ async function createDictionary(zip, locale, size) {
   const zipStream = createZip(generateLists());
   const zipFileStream = createWriteStream(targetPath);
   await pipe(zipStream, zipFileStream);
-  console.log(`Results saved to ${targetPath}`);
+  console.log(`Dictionary saved to ${targetPath}`);
+  console.log(``);
 }
 
 function countSyllable(word) {
