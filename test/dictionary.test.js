@@ -16,12 +16,14 @@ describe('Dictionary', function() {
       await dict.open();
       expect(dict.meta.locale).to.equal('en-US');
       expect(dict.meta.size).to.equal('small');
+      await dict.close();
     })
     it('should open en-US medium dictionary when no options is specified', async function() {
       const dict = new Dictionary;
       await dict.open();
       expect(dict.meta.locale).to.equal('en-US');
       expect(dict.meta.size).to.equal('medium');
+      await dict.close();
     })
     it('should open a custom dictionary', async function() {
       const dict = new Dictionary({ file: resolve('./files/dict.zip' )});
@@ -29,6 +31,7 @@ describe('Dictionary', function() {
       expect(dict.meta.custom).to.equal(true);
       const word = await dict.getWord(1, 0);
       expect(word).to.equal('June');
+      await dict.close();
     })
   })
   describe('#getWordCount()', function() {
@@ -37,6 +40,7 @@ describe('Dictionary', function() {
       await dict.open();
       const count = dict.getWordCount(3);
       expect(count).to.be.a('number').that.is.above(0);
+      await dict.close();
     })
   })
   describe('#getWord()', function() {
@@ -45,6 +49,7 @@ describe('Dictionary', function() {
       await dict.open();
       const word = await dict.getWord(3, 501);
       expect(word).to.equal('approaching')
+      await dict.close();
     })
   })
 })

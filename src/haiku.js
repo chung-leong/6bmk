@@ -40,16 +40,16 @@ export async function createRandomSentence(dict, syllableCount) {
   return words.join(' ');
 }
 
-async function pickRandomWord(dict, maxLength) {
+async function pickRandomWord(dict, maxSyllableCount) {
   // see how many words in total we're considering
   let total = 0;
-  for (let i = 1; i <= maxLength; i++) {
-    total += dict.getWordCount(i);
+  for (let syllables = 1; syllables <= maxSyllableCount; syllables++) {
+    total += dict.getWordCount(syllables);
   }
   // generate random index
   let index = Math.floor(total * Math.random());
   // get the item from the right list
-  for (let syllables = 1; syllables <= maxLength; syllables++) {
+  for (let syllables = 1; syllables <= maxSyllableCount; syllables++) {
     const count = dict.getWordCount(syllables);
     if (index < count) {
       const word = await dict.getWord(syllables, index);
