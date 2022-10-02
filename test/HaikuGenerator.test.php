@@ -1,7 +1,7 @@
 <?php
 
 use PHPUnit\Framework\TestCase;
-use SixBeerMK\HaikuGenerator;
+use cleong\sixbeermk\HaikuGenerator;
 
 class HaikuGeneratorTest extends TestCase {
   function testCreateRandomSentence() {
@@ -54,14 +54,42 @@ class HaikuGeneratorTest extends TestCase {
   }
 }
 
-function countSyllables($sentence) {
-  // need help from Node.js
-  $script = __DIR__ . '/count-syllables.js';
-  return (int) `node "$script" $sentence`;
-}
-
 function isHaiku($haiku) {
   $filtered = preg_replace('/[^\s\w]+/', '', strtolower($haiku));
   list($l1, $l2, $l3) = array_map('countSyllables', preg_split('/[\r\n]+/', $filtered));
   return $l1 === 5 && $l2 === 7 && $l3 === 5;
+}
+
+$nodeJS = null;
+
+function countSyllables($sentence) {
+  // need help from Node.js
+  global $nodeJS;
+  if (!$nodeJS) {
+    $nodeJS = new NodeJS;
+  }
+  return $nodeJS->countSyllables($sentence);
+}
+
+class NodeJS {
+  protected $handle;
+  protected $pipes;
+
+  function __construct() {
+    // need help from Node.js
+    $script = __DIR__ . '/count-syllables.js';
+    $spec = [ 0 => [ 'pipe', 'r' ], 1 => [ 'pipe', 'w' ], 2 => STDERR ];
+    $this->handle = proc_open("node '$script'", $spec, $this->pipes);
+  }
+
+  function __destruct() {
+    proc_close($this->handle);
+  }
+
+  public function countSyllables($sentence) {
+    fwrite($this->pipes[0], "$sentence\n");
+    fflush($this->pipes[0]);
+    fscanf($this->pipes[1], '%d\n', $count);
+    return $count;
+  }
 }

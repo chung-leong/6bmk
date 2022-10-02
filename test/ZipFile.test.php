@@ -1,7 +1,7 @@
 <?php
 
 use PHPUnit\Framework\TestCase;
-use SixBeerMK\ZipFile;
+use cleong\sixbeermk\ZipFile;
 
 class ZipTest extends TestCase {
   function testOpen() {

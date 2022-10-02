@@ -1,7 +1,7 @@
 <?php
 
 use PHPUnit\Framework\TestCase;
-use SixBeerMK\Dictionary;
+use cleong\sixbeermk\Dictionary;
 
 class DictionaryTest extends TestCase {
   function testOpen() {

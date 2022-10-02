@@ -1,4 +1,4 @@
-<?php namespace SixBeerMK;
+<?php namespace cleong\sixbeermk;
 
 use \Exception;
 

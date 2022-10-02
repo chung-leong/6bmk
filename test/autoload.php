@@ -3,7 +3,7 @@
 include_once __DIR__.'/../vendor/autoload.php';
 
 $classLoader = new \Composer\Autoload\ClassLoader();
-$classLoader->addPsr4('SixBeerMK\\', __DIR__ . '/../src', true);
+$classLoader->addPsr4('cleong\\sixbeermk\\', __DIR__ . '/../src', true);
 $classLoader->register();
 
 function access_protected($obj, $name) {

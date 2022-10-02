@@ -14,5 +14,16 @@ export function countSyllables(sentence) {
 
 const [ script, ...args ] = process.argv.slice(1);
 if (script == (new URL(import.meta.url)).pathname) {
-  process.stdout.write(`${countSyllables(args.join(' '))}`);
+  async function run() {
+    const { createInterface } = await import('readline');
+    const rl = createInterface({
+      input: process.stdin,
+      output: process.stdout,
+      terminal: false
+    });
+    rl.on('line', (line) => {
+      process.stdout.write(`${countSyllables(line)}\n`);
+    });
+  }
+  run();
 }
