@@ -6,13 +6,11 @@ export class ZipFile {
   constructor(path) {
     this.path = path;
     this.file = null;
-    this.size = 0;
     this.centralDirectory = null;
   }
 
   async open() {
     this.file = await open(this.path);
-    this.size = (await this.file.stat()).size;
     this.centralDirectory = await this.loadCentralDirectory();
   }
 
@@ -58,11 +56,12 @@ export class ZipFile {
   }
 
   async findCentralDirectory() {
+    const { size } = await this.file.stat();
     const headerSize = 22;
     const header = Buffer.alloc(headerSize);
     const maxCommentLength = 65535;
-    const offsetLimit = Math.max(0, this.size - headerSize - maxCommentLength);
-    let offset = this.size - headerSize;
+    const offsetLimit = Math.max(0, size - headerSize - maxCommentLength);
+    let offset = size - headerSize;
     let found = false;
     while (!found && offset >= offsetLimit) {
       await this.file.read(header, 0, headerSize, offset);
