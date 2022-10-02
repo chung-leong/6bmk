@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+import { countSyllables } from './count-syllables.js';
 import { phonesForWord, syllableCount } from 'pronouncing';
 import { Dictionary } from '../src/dictionary.js';
 
@@ -16,10 +17,7 @@ describe('Haiku generation', function() {
       for (let i = 0; i < 10; i++) {
         const sentence = await createRandomSentence(dict, 7);
         expect(sentence).to.satisfy(() => {
-          let count = 0;
-          for (const word of sentence.split(' ')) {
-            count += countSyllables(word);
-          }
+          const count = countSyllables(sentence);
           if (count !== 7) {
             for (const word of sentence.split(' ')) {
               const count = countSyllables(word);
@@ -33,18 +31,6 @@ describe('Haiku generation', function() {
     })
   })
   describe('#generateMultipleHaiku()', async function() {
-    function isHaiku(haiku) {
-      const filtered = haiku.toLowerCase().replace(/[^\s\w]+/g, '');
-      const [ l1, l2, l3 ] = filtered.split(/[\r\n]+/).map((line) => {
-        const words = line.split(/\s+/);
-        let count = 0;
-        for (const word of words) {
-          count += countSyllables(word);
-        }
-        return count;
-      });
-      return l1 === 5 && l2 === 7 && l3 === 5;
-    }
     it('should generate multiple random haiku', async function() {
       const known = 'The west wind whispered,\nAnd touched the eyelids of spring:\nHer eyes, Primroses.';
       const control = isHaiku(known);
@@ -84,10 +70,8 @@ describe('Haiku generation', function() {
   })
 })
 
-function countSyllables(word) {
-  const phonemes = phonesForWord(word.toLowerCase())[0];
-  if (phonemes) {
-    return syllableCount(phonemes);
-  }
-  return 0;
+function isHaiku(haiku) {
+  const filtered = haiku.toLowerCase().replace(/[^\s\w]+/g, '');
+  const [ l1, l2, l3 ] = filtered.split(/[\r\n]+/).map(countSyllables);
+  return l1 === 5 && l2 === 7 && l3 === 5;
 }

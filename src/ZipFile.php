@@ -1,4 +1,6 @@
-<?php
+<?php namespace SixBeerMK;
+
+use \Exception;
 
 class ZipFile {
   protected $path;
@@ -20,7 +22,7 @@ class ZipFile {
 
   public function extractFile($name) {
     if (!$this->centralDirectory) {
-      throw new Error('File has not been opened yet');
+      throw new Exception('File has not been opened yet');
     }
     $record = null;
     foreach($this->centralDirectory as $r) {
@@ -55,7 +57,7 @@ class ZipFile {
   }
 
   public function extractJSONFile($name) {
-    $text = $this->extractTextFile(name);
+    $text = $this->extractTextFile($name);
     return json_decode($text);
   }
 
@@ -109,13 +111,7 @@ class ZipFile {
       extract(unpack('VcompressedSize/VuncompressedSize', $header, 20));
       $name = substr($header, 46, $nameLength);
       extract(unpack('VlocalHeaderOffset', $header, 42));
-      $records[] = [
-        'name' => $name,
-        'compression' => $compression,
-        'compressedSize' => $compressedSize,
-        'uncompressedSize' => $uncompressedSize,
-        'localHeaderOffset' => $localHeaderOffset,
-      ];
+      $records[] = compact('name', 'compression', 'compressedSize', 'uncompressedSize', 'localHeaderOffset');
       $index += $headerSize;
     }
     return $records;
@@ -130,5 +126,3 @@ function decompressData($buffers, $type) {
   }
   return $buffer;
 }
-
-?>
