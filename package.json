@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "test": "./node_modules/mocha/bin/mocha.js -- test/*.js",
-    "test:watch": "./node_modules/mocha/bin/mocha.js --parallel --watch -- test/*.js"
+    "test:watch": "./node_modules/mocha/bin/mocha.js --parallel --watch -- test/*.js",
+    "test:php": "php phpunit-8.5.phar test/*.test.php"
   },
   "repository": {
     "type": "git",
