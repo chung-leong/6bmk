@@ -30,6 +30,7 @@ class ZipModifierTest extends TestCase {
     $filter = ZipModifier::register();
     $path = __DIR__ . '/files/three-files.zip';
     $fileStream = fopen($path, 'rb');
+    stream_set_chunk_size($fileStream, rand(10, 1024));
     $names = [];
     stream_filter_append($fileStream, $filter, 0, function($name) use(&$names) {
       $names[] = $name;
@@ -44,6 +45,7 @@ class ZipModifierTest extends TestCase {
     // should find extract contents from small uncompressed file
     $path = __DIR__ . '/files/three-files.zip';
     $fileStream = fopen($path, 'rb');
+    stream_set_chunk_size($fileStream, rand(10, 1024));
     $text = '';
     stream_filter_append($fileStream, $filter, 0, function($name) use(&$text) {
       if ($name === 'three-files/donut.txt') {
@@ -60,6 +62,7 @@ class ZipModifierTest extends TestCase {
     // should remove file when transform function return false
     $path = __DIR__ . '/files/three-files.zip';
     $fileStream = fopen($path, 'rb');
+    stream_set_chunk_size($fileStream, rand(10, 1024));
     stream_filter_append($fileStream, $filter, 0, function($name) {
       if ($name === 'three-files/malgorzata-socha.jpg') {
         return function($data) { return null; };
@@ -79,6 +82,7 @@ class ZipModifierTest extends TestCase {
     // should replace file contents
     $path = __DIR__ . '/files/three-files.zip';
     $fileStream = fopen($path, 'rb');
+    stream_set_chunk_size($fileStream, rand(10, 1024));
     $replacement = 'wasabi donut';
     stream_filter_append($fileStream, $filter, 0, function($name) use($replacement) {
       if ($name === 'three-files/donut.txt') {
@@ -127,6 +131,7 @@ class ZipModifierTest extends TestCase {
     // should find file with unicode name
     $path = __DIR__ . '/files/unicode.zip';
     $fileStream = fopen($path, 'rb');
+    stream_set_chunk_size($fileStream, rand(10, 1024));
     $names = [];
     stream_filter_append($fileStream, $filter, 0, function($name) use(&$names) {
       $names[] = $name;
@@ -162,6 +167,7 @@ class ZipModifierTest extends TestCase {
     $variables['body_instruction_text'] = $instructions;
     $path = __DIR__ . '/../pptx/flyer-a4-portrait.pptx';
     $fileStream = fopen($path, 'rb');
+    stream_set_chunk_size($fileStream, rand(10, 1024));
     stream_filter_append($fileStream, $filter, 0, function($name) use($variables) {
       if ($name === 'ppt/slides/slide1.xml') {
         return function ($data) use($variables) {
@@ -174,9 +180,7 @@ class ZipModifierTest extends TestCase {
     // need to check file manually
     $pptxPath = __DIR__ . ('/files/output/flyer-php.pptx');
     $pptxFileStream = fopen($pptxPath, 'wb');
-    while ($buffer = fread($fileStream, 4096)) {
-      fwrite($pptxFileStream, $buffer);
-    }
+    stream_copy_to_stream($fileStream, $pptxFileStream);
     fclose($fileStream);
     fclose($pptxFileStream);
   }
