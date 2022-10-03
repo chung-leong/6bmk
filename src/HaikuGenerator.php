@@ -20,17 +20,13 @@ class HaikuGenerator {
     return implode("\n", $sentences);
   }
 
-  public static function hash($haiku, $type = 'sha1') {
+  public static function hash($haiku, $algo = 'sha1') {
     if (gettype($haiku) !== 'string') {
       throw new Exception('Haiku must be a string');
     }
     // replace sequence of non-alphanumeric characters (including whitespace) with a single space
     $filtered = trim(preg_replace('/\W+/', ' ', strtolower($haiku)));
-    switch ($type) {
-      case 'sha1': return sha1($filtered);
-      case 'md5': return md5($filtered);
-      default: throw new Exception("Unknown hash type: ${type}");
-    }
+    return hash($algo, $filtered);
   }
 
   protected function createRandomSentence($syllableCount) {

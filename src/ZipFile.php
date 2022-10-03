@@ -48,7 +48,7 @@ class ZipFile {
     if (strlen($data) !== $compressedSize) {
       throw new Exception('Cannot read the correct number of bytes');
     }
-    $uncompressedData = decompressData([ $data ], $compression);
+    $uncompressedData = ($compression === 8) ? gzinflate($data) : $data;
     return $uncompressedData;
   }
 
@@ -117,12 +117,4 @@ class ZipFile {
     return $records;
   }
 
-}
-
-function decompressData($buffers, $type) {
-  $buffer = (count($buffers) === 1) ? $buffers[0] : implode($buffers);
-  if ($type === 8) {
-    return gzinflate($buffer);
-  }
-  return $buffer;
 }

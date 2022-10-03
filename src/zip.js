@@ -164,21 +164,22 @@ export function modifyZip(stream, cb) {
               } else {
                 // just output the header
                 localHeaderOffsets[name] = currentOffset;
-                currentOffset += header.length;
+                currentOffset += headerSize;
                 omitDataDescriptor = false;
                 yield header;
               }
-              index += header.length;
+              index += headerSize;
               dataRemaining = compressedSize;
             } else if (signature === 0x08074b50) {
               // data descriptor
               const descriptor = getBufferSlice(chunk, index, 16);
               if (!omitDataDescriptor) {
-                currentOffset += descriptor.length;
+                currentOffset += 16;
                 yield descriptor;
               }
               index += descriptor.length;
             } else if (signature === 0x02014b50) {
+              // central directory record
               const nameLength = chunk.readUInt16LE(index + 28);
               const extraLength = chunk.readUInt16LE(index + 30);
               const commentLength = chunk.readUInt16LE(index + 32)
@@ -203,11 +204,11 @@ export function modifyZip(stream, cb) {
                   centralDirectoryOffset = currentOffset;
                 }
                 centralDirectoryRecordCount++;
-                centralDirectorySize += header.length;
-                currentOffset += header.length;
+                centralDirectorySize += headerSize;
+                currentOffset += headerSize;
                 yield header;
               }
-              index += header.length;
+              index += headerSize;
             } else if (signature === 0x06054b50) {
               // end of central directory record
               const commentLength = chunk.readUInt16LE(index + 20)
@@ -218,9 +219,9 @@ export function modifyZip(stream, cb) {
               header.writeUInt16LE(centralDirectoryRecordCount, 10);
               header.writeUInt32LE(centralDirectorySize, 12);
               header.writeUInt32LE(centralDirectoryOffset, 16);
-              currentOffset += header.length;
+              currentOffset += headerSize;
               yield header;
-              index += header.length;
+              index += headerSize;
             } else {
               stream.destroy();
               throw new Error(`Unknown signature ${signature.toString(16)}`);
@@ -252,10 +253,8 @@ export function modifyZip(stream, cb) {
             const { header, flags, name, compression, transform, data, extraLength } = extraction;
             const uncompressedData = await decompressData(data, compression);
             let transformedData = await transform(uncompressedData);
-            if (transformedData == null) {
-              transformedData = Buffer.alloc(0);
-            } else if (!(transformedData instanceof Buffer) && transformedData !== false) {
-              transformedData = Buffer.from(transformedData.toString());
+            if (!(transformedData instanceof Buffer) && transformedData !== null) {
+              transformedData = Buffer.from(`${transformedData}`);
             }
             if (transformedData instanceof Buffer) {
               const crc32 = calcuateCRC32(transformedData);
@@ -266,7 +265,6 @@ export function modifyZip(stream, cb) {
               transformedFileAttributes[name] = { crc32, compressedSize, uncompressedSize };
               localHeaderOffsets[name] = currentOffset;
               // update header
-              const flagsOrg = header.readUInt16LE(6);
               header.writeUInt16LE(flags & ~0x0008, 6);
               header.writeUInt32LE(crc32, 14);
               header.writeUInt32LE(compressedSize, 18);
@@ -274,9 +272,9 @@ export function modifyZip(stream, cb) {
               // output the header and transformed data
               currentOffset += header.length;
               yield header;
-              currentOffset += compressedData.length;
+              currentOffset += compressedSize;
               yield compressedData;
-            } else if (transformedData !== false) {
+            } else if (transformedData !== null) {
               stream.destroy();
               throw new Error('Transform function did not return a Buffer object or false');
             }

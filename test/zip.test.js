@@ -41,14 +41,14 @@ describe('Zip functions', function() {
       for await (const chunk of outStream) {}
       expect(text).to.contains('${placeholder}');
     })
-    it('should remove file when transform function return false', async function() {
+    it('should remove file when transform function return null', async function() {
       const path = resolve('./files/three-files.zip');
       const fileStream = createReadStream(path);
       const chunkedStream = createChunkyStream(fileStream, 1024);
       const outStream1 = modifyZip(chunkedStream, (name) => {
         if (name === 'three-files/malgorzata-socha.jpg') {
           return async (buffer) => {
-            return false;
+            return null;
           };
         }
       });
