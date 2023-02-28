@@ -6,11 +6,12 @@ import { Dictionary } from '../src/dictionary.js';
 import {
   createRandomSentence,
   generateMultipleHaiku,
+  generateHaiku,
   getHaikuHash,
 } from '../src/haiku.js';
 
 describe('Haiku generation', function() {
-  describe('#createRandomSentence()', function() {
+  describe('#createRandomSentence', function() {
     it('should generate a random sentence of the correct length', async function() {
       const dict = new Dictionary();
       await dict.open();
@@ -30,7 +31,7 @@ describe('Haiku generation', function() {
       await dict.close();
     })
   })
-  describe('#generateMultipleHaiku()', async function() {
+  describe('#generateMultipleHaiku', async function() {
     it('should generate multiple random haiku', async function() {
       const known = 'The west wind whispered,\nAnd touched the eyelids of spring:\nHer eyes, Primroses.';
       const control = isHaiku(known);
@@ -43,7 +44,14 @@ describe('Haiku generation', function() {
       }
     })
   })
-  describe('#getHaikuHash()', function() {
+  describe('#generateHaiku', async function() {
+    it('should generate a single haiku', async function() {
+      const haiku = await generateHaiku(10);
+      const result = isHaiku(haiku);
+      expect(result).to.be.true;
+    })
+  })
+  describe('#getHaikuHash', function() {
     const base = 'the west wind whispered\nand touched the eyelids of spring\nher eyes Primroses';
     it('should generate a string with 40 characters', function() {
       const hash = getHaikuHash(base);
@@ -66,6 +74,9 @@ describe('Haiku generation', function() {
       const hash1 = getHaikuHash(base);
       const hash2 = getHaikuHash(test);
       expect(hash1).to.equal(hash2);
+    })
+    it('should throw if argument is not a string', function() {
+      expect(() => getHaikuHash()).to.throw();
     })
   })
 })

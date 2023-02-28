@@ -250,13 +250,14 @@ export function modifyZip(stream, cb) {
           index += data.length;
           dataRemaining -= data.length;
           if (dataRemaining === 0 && extraction) {
-            const { header, flags, name, compression, transform, data, extraLength } = extraction;
+            const { header, flags, name, compression, transform, data } = extraction;
             const uncompressedData = await decompressData(data, compression);
             let transformedData = await transform(uncompressedData);
+            console.log(); 
             if (!(transformedData instanceof Buffer) && transformedData !== null) {
               transformedData = Buffer.from(`${transformedData}`);
             }
-            if (transformedData instanceof Buffer) {
+            if (transformedData) {
               const crc32 = calcuateCRC32(transformedData);
               const compressedData = await compressData(transformedData, compression);
               const compressedSize = compressedData.length;
@@ -274,10 +275,7 @@ export function modifyZip(stream, cb) {
               yield header;
               currentOffset += compressedSize;
               yield compressedData;
-            } else if (transformedData !== null) {
-              stream.destroy();
-              throw new Error('Transform function did not return a Buffer object or false');
-            }
+            } 
             extraction = null;
           }
         }
@@ -424,7 +422,7 @@ function extractName(header, index, length, flags) {
   }
 }
 
-async function decompressData(buffers, type) {
+export async function decompressData(buffers, type) {
   let buffer = (buffers.length === 1) ? buffers[0] : Buffer.concat(buffers);
   if (type === 8) {
     buffer = await new Promise((resolve, reject) => {
@@ -440,10 +438,13 @@ async function decompressData(buffers, type) {
   return buffer;
 }
 
-async function compressData(buffer, type) {
+export async function compressData(buffer, type) {
   if (type === 8) {
     buffer = await new Promise((resolve, reject) => {
       deflateRaw(buffer, (err, data) => {
+        // can't programmatically create a condition where deflateRaw would 
+        // run into an error
+        /* c8 ignore next 2 */
         if (err) {
           reject(err);
         } else {

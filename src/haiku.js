@@ -58,6 +58,7 @@ async function pickRandomWord(dict, maxSyllableCount) {
       index -= count;
     }
   }
+  /* c8 ignore next */
 }
 
 export function getHaikuHash(haiku, type = 'sha1') {

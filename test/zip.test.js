@@ -6,13 +6,27 @@ import { createReadStream, createWriteStream } from 'fs';
 Chai.use(ChaiAsPromised);
 
 import {
+  decompressData,
+  compressData,
   modifyZip,
   createZip,
   ZipFile,
 } from '../src/zip.js';
 
 describe('Zip functions', function() {
-  describe('#modifyZip()', function() {
+  describe('#decompressData', function() {
+    it('should throw if the data is invalid', async function() {
+      const promise = decompressData([ Buffer.alloc(3) ], 8);
+      await expect(promise).to.eventually.be.rejected;
+    })
+  })
+  describe('#compressData', function() {
+    it('should throw if the data is invalid', async function() {
+      const promise = compressData(false, 8);
+      await expect(promise).to.eventually.be.rejected;
+    })
+  })
+  describe('#modifyZip', function() {
     it('should find files inside archive', async function() {
       const names = [];
       const path = resolve('./files/three-files.zip');
@@ -25,7 +39,19 @@ describe('Zip functions', function() {
       expect(names).to.contains('three-files/donut.txt');
       expect(names).to.contains('three-files/malgorzata-socha.jpg');
     })
-    it('should find extract contents from small uncompressed file', async function() {
+    it('should work when chunk size is small', async function() {
+      const names = [];
+      const path = resolve('./files/three-files.zip');
+      const fileStream = createReadStream(path);
+      const chunkedStream = createChunkyStream(fileStream, 3);
+      const outStream = modifyZip(chunkedStream, name => names.push(name));
+      for await (const chunk of outStream) {}
+      expect(names).to.contains('three-files/');
+      expect(names).to.contains('three-files/LICENSE.txt');
+      expect(names).to.contains('three-files/donut.txt');
+      expect(names).to.contains('three-files/malgorzata-socha.jpg');
+    })
+    it('should extract contents from small uncompressed file', async function() {
       const path = resolve('./files/three-files.zip');
       const fileStream = createReadStream(path);
       const chunkedStream = createChunkyStream(fileStream, 1024);
@@ -212,6 +238,29 @@ describe('Zip functions', function() {
       await pipe(outStream, zipFileStream);
       expect(outText).to.equal(inText2);
     })
+    it('should create zip file with per file comment', async function() {
+      const inText1 = 'Hello world\n';
+      const inText2 = inText1.repeat(300);
+      const zipStream = createZip([
+        { name: 'hello1.txt', data: Buffer.from(inText1), comment: 'File #1' },
+        { name: 'hello2.txt', data: Buffer.from(inText2), isText: true, comment: 'File #2' },
+        { name: 'world/', isFile: false, comment: 'File #3' },
+      ]);
+      let outText;
+      const outStream = modifyZip(zipStream, (name) => {
+        if (name === 'hello2.txt') {
+          return async (buffer) => {
+            outText = buffer.toString();
+            return buffer;
+          };
+        }
+      });
+      // need to check file manually
+      const zipPath = resolve('./files/output/test3.zip');
+      const zipFileStream = createWriteStream(zipPath);
+      await pipe(outStream, zipFileStream);
+      expect(outText).to.equal(inText2);
+    })
   })
   describe('ZipFile', function() {
     describe('#open()', function() {
@@ -223,6 +272,14 @@ describe('Zip functions', function() {
         await zip.close();
         expect(cd[3]).to.have.property('name', 'three-files/malgorzata-socha.jpg');
         expect(cd[1]).to.have.property('uncompressedSize', 32474);
+      })
+    })
+    describe('#extractFile', function() {
+      it('should throw if a file has not been opened yet', async function() {
+        const path = resolve('./files/three-files.zip');
+        const zip = new ZipFile(path);
+        const promise = zip.extractFile('three-files/LICENSE.txt');
+        await expect(promise).to.eventually.be.rejected;
       })
     })
     describe('#extractTextFile', function() {
