@@ -9,13 +9,19 @@ export class ZipFile {
     this.centralDirectory = null;
   }
 
-  async open() {
+  async open() {    
     this.file = await open(this.path);
-    this.centralDirectory = await this.loadCentralDirectory();
+    try {
+      this.centralDirectory = await this.loadCentralDirectory();
+    } catch (err) {
+      await this.close();
+      throw err;
+    }
   }
 
   async close() {
     await this.file.close();
+    this.file = null;
   }
 
   async extractFile(name) {
@@ -128,6 +134,7 @@ export function modifyZip(stream, cb) {
   const processStream = async function*() {
     let leftOver = null;
     let extraction = null;
+    let dataRead = 0;
     let dataRemaining = 0;
     let currentOffset = 0;
     let localHeaderOffsets = {};
@@ -136,6 +143,7 @@ export function modifyZip(stream, cb) {
     let centralDirectoryRecordCount = 0;
     let transformedFileAttributes = {};
     let omitDataDescriptor = false;
+    let dataDescriptorSignature = null;
     for await (let chunk of stream) {
       if (leftOver) {
         chunk = Buffer.concat([ leftOver, chunk ]);
@@ -148,6 +156,7 @@ export function modifyZip(stream, cb) {
           try {
             const signature = chunk.readUInt32LE(index);
             if (signature === 0x04034b50) {
+              // file record
               const nameLength = chunk.readUInt16LE(index + 26);
               const extraLength = chunk.readUInt16LE(index + 28);
               const headerSize = 30 + nameLength + extraLength;
@@ -169,7 +178,15 @@ export function modifyZip(stream, cb) {
                 yield header;
               }
               index += headerSize;
-              dataRemaining = compressedSize;
+              if (flags & 0x0008) {
+                if (!dataDescriptorSignature) {
+                  dataDescriptorSignature = new Uint8Array([ 0x50, 0x4b, 0x07, 0x08 ]);
+                }
+                dataRemaining = Infinity;
+              } else {
+                dataRemaining = compressedSize;
+              }
+              dataRead = 0;
             } else if (signature === 0x08074b50) {
               // data descriptor
               const descriptor = getBufferSlice(chunk, index, 16);
@@ -238,7 +255,37 @@ export function modifyZip(stream, cb) {
         } else {
           // processing the data contents
           // get up to the number of bytes remaining from the chunk
-          const data = chunk.subarray(index, index + dataRemaining);
+          let data = chunk.subarray(index, index + dataRemaining);
+          if (dataRemaining === Infinity) {
+            // don't know the length, look for data descriptor
+            const ddIndex = data.indexOf(dataDescriptorSignature);
+            let needMore = false;
+            if (ddIndex !== -1) {
+              if (ddIndex + 16 < data.length) {
+                const header = getBufferSlice(data, ddIndex, 16);
+                const compressedSize = header.readUInt32LE(8);
+                if (dataRead + ddIndex === compressedSize) {
+                  data = data.subarray(0, ddIndex);
+                  dataRemaining = data.length;
+                }
+              } else {
+                needMore = true;
+              }
+            } else {
+              // in case the chunk ends in the middle of the data descriptor's signature
+              if (Buffer.compare(data.subarray(-3), dataDescriptorSignature.subarray(0, -1)) === 0) {
+                needMore = true;
+              } else if (Buffer.compare(data.subarray(-2), dataDescriptorSignature.subarray(0, -2)) === 0) {
+                needMore = true;
+              } else if (Buffer.compare(data.subarray(-1), dataDescriptorSignature.subarray(0, -3)) === 0) {
+                needMore = true;
+              }
+            }
+            if (needMore) {
+              leftOver = data;
+              break;
+            }
+          }
           if (extraction) {
             // keep the data
             extraction.data.push(data);
@@ -249,11 +296,11 @@ export function modifyZip(stream, cb) {
           }
           index += data.length;
           dataRemaining -= data.length;
+          dataRead += data.length;
           if (dataRemaining === 0 && extraction) {
             const { header, flags, name, compression, transform, data } = extraction;
             const uncompressedData = await decompressData(data, compression);
             let transformedData = await transform(uncompressedData);
-            console.log(); 
             if (!(transformedData instanceof Buffer) && transformedData !== null) {
               transformedData = Buffer.from(`${transformedData}`);
             }

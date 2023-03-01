@@ -111,6 +111,31 @@ describe('Zip functions', function() {
       for await (const chunk of outStream2) {}
       expect(text).to.contains(replacement);
     })
+    it('should work with zip files with data descriptor', async function() {
+      const path = resolve('./files/two-files-with-dd.zip');
+      const fileStream = createReadStream(path);
+      const chunkedStream = createChunkyStream(fileStream, 1);
+      const replacement = 'wasabi donut';
+      const outStream1 = modifyZip(chunkedStream, (name) => {
+        if (name === 'three-files/donut.txt') {
+          return async (buffer) => {
+            const text = buffer.toString();
+            return text.replace('${placeholder}', replacement);
+          };
+        }
+      });
+      let text = '';
+      const outStream2 = modifyZip(outStream1, (name) => {
+        if (name === 'three-files/donut.txt') {
+          return async (buffer) => {
+            text = buffer.toString();
+            return buffer;
+          };
+        }
+      });
+      for await (const chunk of outStream2) {}
+      expect(text).to.contains(replacement);
+    })
     it('should replace contents of larger compressed file', async function() {
       const path = resolve('./files/three-files.zip');
       const fileStream = createReadStream(path);
@@ -185,6 +210,28 @@ describe('Zip functions', function() {
       const pptxPath = resolve('./files/output/flyer.pptx');
       const pptxFileStream = createWriteStream(pptxPath);
       await pipe(outStream, pptxFileStream);
+    })
+    it('should throw when EOCD record is corrupted', async function() {
+      const names = [];
+      const path = resolve('./files/three-files-bad-eocd.zip');
+      const fileStream = createReadStream(path);
+      const chunkedStream = createChunkyStream(fileStream, 1024);
+      const outStream = modifyZip(chunkedStream, name => names.push(name));
+      const promise = (async () => {
+        for await (const chunk of outStream) {}
+      })();
+      await expect(promise).to.eventually.be.rejected;
+    })
+    it('should throw when CD record is corrupted', async function() {
+      const names = [];
+      const path = resolve('./files/three-files-bad-cdh.zip');
+      const fileStream = createReadStream(path);
+      const chunkedStream = createChunkyStream(fileStream, 1024);
+      const outStream = modifyZip(chunkedStream, name => names.push(name));
+      const promise = (async () => {
+        for await (const chunk of outStream) {}
+      })();
+      await expect(promise).to.eventually.be.rejected;
     })
   })
   describe('#createZip', function() {
@@ -273,6 +320,54 @@ describe('Zip functions', function() {
         expect(cd[3]).to.have.property('name', 'three-files/malgorzata-socha.jpg');
         expect(cd[1]).to.have.property('uncompressedSize', 32474);
       })
+      it('should find the central directory when there is 1 extra byte', async function() {
+        const path = resolve('./files/three-files-x1.zip');
+        const zip = new ZipFile(path);
+        await zip.open();
+        const cd = zip.centralDirectory;
+        await zip.close();
+        expect(cd[3]).to.have.property('name', 'three-files/malgorzata-socha.jpg');
+        expect(cd[1]).to.have.property('uncompressedSize', 32474);
+      })
+      it('should find the central directory when there is 2 extra bytes', async function() {
+        const path = resolve('./files/three-files-x2.zip');
+        const zip = new ZipFile(path);
+        await zip.open();
+        const cd = zip.centralDirectory;
+        await zip.close();
+        expect(cd[3]).to.have.property('name', 'three-files/malgorzata-socha.jpg');
+        expect(cd[1]).to.have.property('uncompressedSize', 32474);
+      })
+      it('should find the central directory when there is 3 extra bytes', async function() {
+        const path = resolve('./files/three-files-x3.zip');
+        const zip = new ZipFile(path);
+        await zip.open();
+        const cd = zip.centralDirectory;
+        await zip.close();
+        expect(cd[3]).to.have.property('name', 'three-files/malgorzata-socha.jpg');
+        expect(cd[1]).to.have.property('uncompressedSize', 32474);
+      })
+      it('should find the central directory when there is 5 extra bytes', async function() {
+        const path = resolve('./files/three-files-x5.zip');
+        const zip = new ZipFile(path);
+        await zip.open();
+        const cd = zip.centralDirectory;
+        await zip.close();
+        expect(cd[3]).to.have.property('name', 'three-files/malgorzata-socha.jpg');
+        expect(cd[1]).to.have.property('uncompressedSize', 32474);
+      })
+      it('should throw when eof-of-central-directory record cannot be found', async function() {
+        const path = resolve('./files/three-files-bad-eocd.zip');
+        const zip = new ZipFile(path);
+        const promise = zip.open();
+        await expect(promise).to.eventually.be.rejected;
+      })
+      it('should throw when central-directory record is corrupted', async function() {
+        const path = resolve('./files/three-files-bad-cdh.zip');
+        const zip = new ZipFile(path);
+        const promise = zip.open();
+        await expect(promise).to.eventually.be.rejected;
+      })
     })
     describe('#extractFile', function() {
       it('should throw if a file has not been opened yet', async function() {
@@ -281,6 +376,31 @@ describe('Zip functions', function() {
         const promise = zip.extractFile('three-files/LICENSE.txt');
         await expect(promise).to.eventually.be.rejected;
       })
+      it('should throw if a local header is corrupted', async function() {
+        const path = resolve('./files/three-files-bad-lh.zip');
+        const zip = new ZipFile(path);
+        await zip.open();
+        const promise = zip.extractFile('three-files/LICENSE.txt');
+        await expect(promise).to.eventually.be.rejected;
+        await zip.close();
+      })
+      it('should throw if a local header is corrupted', async function() {
+        const path = resolve('./files/three-files-bad-lh.zip');
+        const zip = new ZipFile(path);
+        await zip.open();
+        const promise = zip.extractFile('three-files/LICENSE.txt');
+        await expect(promise).to.eventually.be.rejected;
+        await zip.close();
+      })
+      it('should throw if a compressed size in CD is corrupted', async function() {
+        const path = resolve('./files/three-files-bad-size.zip');
+        const zip = new ZipFile(path);
+        await zip.open();
+        const promise = zip.extractFile('three-files/LICENSE.txt');
+        await expect(promise).to.eventually.be.rejected;
+        await zip.close();
+      })
+
     })
     describe('#extractTextFile', function() {
       it('should extract a text file', async function() {
