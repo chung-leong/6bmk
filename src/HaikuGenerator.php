@@ -68,6 +68,6 @@ class HaikuGenerator {
       } else {
         $index -= $count;
       }
-    }
-  }
+    }   
+  } // @codeCoverageIgnore
 }

@@ -51,6 +51,12 @@ class HaikuGeneratorTest extends TestCase {
     $hash1 = HaikuGenerator::hash($base);
     $hash2 = HaikuGenerator::hash($test);
     $this->assertSame($hash1, $hash2);
+
+    // should throw if argument is not a string
+    $error = catch_error(function() {
+      HaikuGenerator::hash(null);
+    });
+    $this->assertInstanceOf(Exception::class, $error);
   }
 }
 

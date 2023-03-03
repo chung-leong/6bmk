@@ -19,6 +19,7 @@ class ZipModifier extends php_user_filter {
   protected $callback;
   protected $leftOver = '';
   protected $extraction;
+  protected $dataRead = 0;
   protected $dataRemaining = 0;
   protected $currentOffset = 0;
   protected $localHeaderOffsets = [];
@@ -29,6 +30,7 @@ class ZipModifier extends php_user_filter {
   protected $omitDataDescriptor = false;
 
   public function filter($in, $out, &$consumed, $closing) {
+    $dataDescriptorSignature = "\x50\x4b\x07\x08";
     while ($bucket = stream_bucket_make_writeable($in)) {
       $output = [];
       $chunk = $bucket->data;
@@ -65,12 +67,17 @@ class ZipModifier extends php_user_filter {
                 $output[] = $header;
               }
               $index += $headerSize;
-              $this->dataRemaining = $compressedSize;
+              if ($flags & 0x0008) {
+                $this->dataRemaining = INF;
+              } else {
+                $this->dataRemaining = $compressedSize;
+              }
+              $this->dataRead = 0;
             } else if ($signature === 0x08074b50) {
               // data descriptor
               $descriptor = substr_or_throw($chunk, $index, 16);
               if (!$this->omitDataDescriptor) {
-                $this->currentOffset += descriptor.length;
+                $this->currentOffset += strlen($descriptor);
                 $output[] = $descriptor;
               }
               $index += 16;
@@ -113,7 +120,6 @@ class ZipModifier extends php_user_filter {
               $output[] = $header;
               $index += $headerSize;
             } else {
-              echo substr($chunk, $index);
               throw new Exception(sprintf('Unknown signature %04x', $signature));
             }
           } catch (OutOfRangeException $err) {
@@ -124,7 +130,36 @@ class ZipModifier extends php_user_filter {
         } else {
           // processing the data contents
           // get up to the number of bytes remaining from the chunk
-          $fragment = substr($chunk, $index, $this->dataRemaining);
+          $fragment = substr($chunk, $index, min(PHP_INT_MAX, $this->dataRemaining));
+          $needMore = false;
+          if ($this->dataRemaining === INF) {            
+            $ddIndex = strpos($fragment, $dataDescriptorSignature);
+            if ($ddIndex !== false) {
+              if ($ddIndex + 16 < strlen($fragment)) {
+                $header = substr($fragment, $ddIndex, 16);
+                extract(unpack('VcompressedSize', $header, 8));
+                if ($this->dataRead + $ddIndex === $compressedSize) {
+                  $fragment = substr($fragment, 0, $ddIndex);
+                  $this->dataRemaining = strlen($fragment);
+                }
+              } else {
+                $needMore = true;
+              }
+            } else {
+              // in case the chunk ends in the middle of the data descriptor's signature
+              if (substr($fragment, -3) === substr($dataDescriptorSignature, 0, -1)) {
+                $needMore = true;
+              } else if (substr($fragment, -2) === substr($dataDescriptorSignature, 0, -2)) {
+                $needMore = true;
+              } else if (substr($fragment, -1) === substr($dataDescriptorSignature, 0, -3)) {
+                $needMore = true;
+              }
+            }
+            if ($needMore) {
+              $this->leftOver = $fragment;
+              break;
+            }
+          }
           $fragmentLen = strlen($fragment);
           if ($this->extraction) {
             // keep the data
@@ -136,6 +171,7 @@ class ZipModifier extends php_user_filter {
           }
           $index += $fragmentLen;
           $this->dataRemaining -= $fragmentLen;
+          $this->dataRead += $fragmentLen;
           if ($this->dataRemaining === 0 && $this->extraction) {
             extract($this->extraction);
             $data = implode($data);
@@ -160,8 +196,6 @@ class ZipModifier extends php_user_filter {
               $output[] = $header;
               $this->currentOffset += $compressedSize;
               $output[] = $compressedData;
-            } else if ($transformedData !== null) {
-              throw new Exception('Transform function did not return a string or null');
             }
             $this->extraction = null;
           }

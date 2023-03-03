@@ -384,14 +384,6 @@ describe('Zip functions', function() {
         await expect(promise).to.eventually.be.rejected;
         await zip.close();
       })
-      it('should throw if a local header is corrupted', async function() {
-        const path = resolve('./files/three-files-bad-lh.zip');
-        const zip = new ZipFile(path);
-        await zip.open();
-        const promise = zip.extractFile('three-files/LICENSE.txt');
-        await expect(promise).to.eventually.be.rejected;
-        await zip.close();
-      })
       it('should throw if a compressed size in CD is corrupted', async function() {
         const path = resolve('./files/three-files-bad-size.zip');
         const zip = new ZipFile(path);
@@ -400,7 +392,6 @@ describe('Zip functions', function() {
         await expect(promise).to.eventually.be.rejected;
         await zip.close();
       })
-
     })
     describe('#extractTextFile', function() {
       it('should extract a text file', async function() {

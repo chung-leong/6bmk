@@ -19,3 +19,11 @@ function invoke_protected($obj, $name, ...$args) {
   $method->setAccessible(true);
   return $method->invoke($obj, ...$args);
 }
+
+function catch_error($f) {
+  try {
+    $f();
+  } catch (Exception $e) {
+    return $e;
+  }
+}

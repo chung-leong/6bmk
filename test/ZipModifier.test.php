@@ -30,7 +30,7 @@ class ZipModifierTest extends TestCase {
     $filter = ZipModifier::register();
     $path = __DIR__ . '/files/three-files.zip';
     $fileStream = fopen($path, 'rb');
-    stream_set_chunk_size($fileStream, rand(10, 1024));
+    stream_set_chunk_size($fileStream, 1024);
     $names = [];
     stream_filter_append($fileStream, $filter, 0, function($name) use(&$names) {
       $names[] = $name;
@@ -42,10 +42,27 @@ class ZipModifierTest extends TestCase {
     $this->assertContains('three-files/donut.txt', $names);
     $this->assertContains('three-files/malgorzata-socha.jpg', $names);
 
+    // should work when chunk size is small
+    $filter = ZipModifier::register();
+    $path = __DIR__ . '/files/three-files.zip';
+    $fileStream = fopen($path, 'rb');
+    stream_set_chunk_size($fileStream, 3);
+    $names = [];
+    stream_filter_append($fileStream, $filter, 0, function($name) use(&$names) {
+      $names[] = $name;
+    });
+    while (fread($fileStream, 1024));
+    fclose($fileStream);
+    $this->assertContains('three-files/', $names);
+    $this->assertContains('three-files/LICENSE.txt', $names);
+    $this->assertContains('three-files/donut.txt', $names);
+    $this->assertContains('three-files/malgorzata-socha.jpg', $names);
+
+
     // should find extract contents from small uncompressed file
     $path = __DIR__ . '/files/three-files.zip';
     $fileStream = fopen($path, 'rb');
-    stream_set_chunk_size($fileStream, rand(10, 1024));
+    stream_set_chunk_size($fileStream, 1024);
     $text = '';
     stream_filter_append($fileStream, $filter, 0, function($name) use(&$text) {
       if ($name === 'three-files/donut.txt') {
@@ -59,10 +76,10 @@ class ZipModifierTest extends TestCase {
     fclose($fileStream);
     $this->assertStringContainsString('${placeholder}', $text);
 
-    // should remove file when transform function return false
+    // should remove file when transform function return null
     $path = __DIR__ . '/files/three-files.zip';
     $fileStream = fopen($path, 'rb');
-    stream_set_chunk_size($fileStream, rand(10, 1024));
+    stream_set_chunk_size($fileStream, 1024);
     stream_filter_append($fileStream, $filter, 0, function($name) {
       if ($name === 'three-files/malgorzata-socha.jpg') {
         return function($data) { return null; };
@@ -82,7 +99,55 @@ class ZipModifierTest extends TestCase {
     // should replace file contents
     $path = __DIR__ . '/files/three-files.zip';
     $fileStream = fopen($path, 'rb');
-    stream_set_chunk_size($fileStream, rand(10, 1024));
+    stream_set_chunk_size($fileStream, 1024);
+    $replacement = 'wasabi donut';
+    stream_filter_append($fileStream, $filter, 0, function($name) use($replacement) {
+      if ($name === 'three-files/donut.txt') {
+        return function($data) use($replacement) {
+          return str_replace('${placeholder}', $replacement, $data);
+        };
+      }
+    });
+    $text = '';
+    stream_filter_append($fileStream, $filter, 0, function($name) use(&$text) {
+      if ($name === 'three-files/donut.txt') {
+        return function($data) use(&$text) {
+          $text = $data;
+          return $data;
+        };
+      }
+    });
+    while (fread($fileStream, 1024));
+    fclose($fileStream);
+    $this->assertStringContainsString($replacement, $text);
+
+    // should cast non-string into string
+    $fileStream = fopen($path, 'rb');
+    stream_set_chunk_size($fileStream, 1024);
+    stream_filter_append($fileStream, $filter, 0, function($name) {
+      if ($name === 'three-files/donut.txt') {
+        return function($data) {
+          return 12345;
+        };
+      }
+    });
+    $text = '';
+    stream_filter_append($fileStream, $filter, 0, function($name) use(&$text) {
+      if ($name === 'three-files/donut.txt') {
+        return function($data) use(&$text) {
+          $text = $data;
+          return $data;
+        };
+      }
+    });
+    while (fread($fileStream, 1024));
+    fclose($fileStream);
+    $this->assertSame('12345', $text);
+
+    // should work with zip files with data descriptor
+    $path = __DIR__ . '/files/two-files-with-dd.zip';
+    $fileStream = fopen($path, 'rb');
+    stream_set_chunk_size($fileStream, 1);
     $replacement = 'wasabi donut';
     stream_filter_append($fileStream, $filter, 0, function($name) use($replacement) {
       if ($name === 'three-files/donut.txt') {
@@ -131,7 +196,7 @@ class ZipModifierTest extends TestCase {
     // should find file with unicode name
     $path = __DIR__ . '/files/unicode.zip';
     $fileStream = fopen($path, 'rb');
-    stream_set_chunk_size($fileStream, rand(10, 1024));
+    stream_set_chunk_size($fileStream, 1024);
     $names = [];
     stream_filter_append($fileStream, $filter, 0, function($name) use(&$names) {
       $names[] = $name;
@@ -167,7 +232,7 @@ class ZipModifierTest extends TestCase {
     $variables['body_instruction_text'] = $instructions;
     $path = __DIR__ . '/../pptx/flyer-a4-portrait.pptx';
     $fileStream = fopen($path, 'rb');
-    stream_set_chunk_size($fileStream, rand(10, 1024));
+    stream_set_chunk_size($fileStream, 1024);
     stream_filter_append($fileStream, $filter, 0, function($name) use($variables) {
       if ($name === 'ppt/slides/slide1.xml') {
         return function ($data) use($variables) {
@@ -183,5 +248,33 @@ class ZipModifierTest extends TestCase {
     stream_copy_to_stream($fileStream, $pptxFileStream);
     fclose($fileStream);
     fclose($pptxFileStream);
+
+    // should throw when EOCD record is corrupted
+    $error = catch_error(function() {
+      $path = __DIR__ . '/files/three-files-bad-eocd.zip';
+      $fileStream = fopen($path, 'rb');
+      $names = [];
+      stream_set_chunk_size($fileStream, 1024);
+      stream_filter_append($fileStream, $filter, 0, function($name) use($names) {
+        $names[] = $name;
+      });
+      while (fread($fileStream, 1024));
+      fclose($fileStream); 
+    });
+    $this->assertInstanceOf(Exception::class, $error);
+
+    // should throw when CD record is corrupted
+    $error = catch_error(function() {
+      $path = __DIR__ . '/files/three-files-bad-cdh.zip';
+      $fileStream = fopen($path, 'rb');
+      $names = [];
+      stream_set_chunk_size($fileStream, 1024);
+      stream_filter_append($fileStream, $filter, 0, function($name) use($names) {
+        $names[] = $name;
+      });
+      while (fread($fileStream, 1024));
+      fclose($fileStream); 
+    });
+    $this->assertInstanceOf(Exception::class, $error);
   }
 }

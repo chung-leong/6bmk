@@ -18,8 +18,8 @@
         }
     ],
     "scripts": {
-        "test": "phpunit"
+        "test": "phpunit",
+        "coverage": "phpunit --coverage-text --coverage-html=./coverage/phpunit --whitelist ./src"
     },
-    "minimum-stability": "stable",
-    "require": {}
+    "minimum-stability": "stable"
 }

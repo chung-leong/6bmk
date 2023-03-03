@@ -100,7 +100,7 @@ class ZipFile {
     $buffer = fread($this->file, $size);
     $index = 0;
     while ($index < $size) {
-      extract(unpack('Vsignature', $buffer));
+      extract(unpack('Vsignature', $buffer, $index));
       if ($signature !== 0x02014b50) {
         throw new Exception('Invalid CD record');
       }

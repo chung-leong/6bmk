@@ -35,4 +35,12 @@ class DictionaryTest extends TestCase {
     $count = $dict->getWordCount(3);
     $this->assertGreaterThan(0, $count);
   }
+
+  function testGetWord() {
+    // should return a word with the given number of syllables
+    $dict = new Dictionary([ 'locale' => 'en-US', 'size' => 'small' ]);
+    $dict->open();
+    $word = $dict->getWord(3, 501);
+    $this->assertSame('approaching', $word);
+  }
 }
