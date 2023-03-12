@@ -1,27 +1,16 @@
-import { Readable } from 'stream';
-import { open } from 'fs/promises';
-import { inflateRaw, deflateRaw } from 'zlib';
+import { inflateRaw, deflateRaw } from 'pako';
 
 export class ZipFile {
-  constructor(path) {
-    this.path = path;
-    this.file = null;
+  constructor(url) {
+    this.url = url;
     this.centralDirectory = null;
   }
 
   async open() {    
-    this.file = await open(this.path);
-    try {
-      this.centralDirectory = await this.loadCentralDirectory();
-    } catch (err) {
-      await this.close();
-      throw err;
-    }
+    this.centralDirectory = await this.loadCentralDirectory();
   }
 
   async close() {
-    await this.file.close();
-    this.file = null;
   }
 
   async extractFile(name) {
@@ -34,17 +23,16 @@ export class ZipFile {
     }
     const { localHeaderOffset, compressedSize, compression } = record;
     const header = Buffer.alloc(30);
-    await this.file.read(header, 0, 30, localHeaderOffset);
-    const signature = header.readUInt32LE();
+    await this.fetch(header, 0, 30, localHeaderOffset);
+    const signature = readUInt32LE(header);
     if (signature !== 0x04034b50) {
       throw new Error('Invalid file header');
     }
-    const nameLength = header.readUInt16LE(26);
-    const extraLength = header.readUInt16LE(28);
+    const nameLength = readUInt16LE(header, 26);
+    const extraLength = readUInt16LE(header, 28);
     const dataOffset = localHeaderOffset + 30 + nameLength + extraLength;
-    const data = Buffer.alloc(compressedSize);
-    const { bytesRead } = await this.file.read(data, 0, compressedSize, dataOffset);
-    if (bytesRead !== compressedSize) {
+    const data = await this.fetch(compressedSize, dataOffset);
+    if (data.length !== compressedSize) {
       throw new Error('Cannot read the correct number of bytes');
     }
     const uncompressedData = await decompressData(data, compression);
@@ -62,16 +50,15 @@ export class ZipFile {
   }
 
   async findCentralDirectory() {
-    const { size } = await this.file.stat();
     const headerSize = 22;
-    const header = Buffer.alloc(headerSize);
     const maxCommentLength = 65535;
-    const offsetLimit = Math.max(0, size - headerSize - maxCommentLength);
-    let offset = size - headerSize;
+    const offsetLimit = -headerSize - maxCommentLength;
+    let offset = -headerSize;
     let found = false;
+    let header;
     while (!found && offset >= offsetLimit) {
-      await this.file.read(header, 0, headerSize, offset);
-      const signature = header.readUInt32LE();
+      header = this.fetch(headerSize, offset);
+      const signature = readUInt32LE(header);
       if (signature === 0x06054b50) {
         found = true;
       } else {
@@ -86,9 +73,9 @@ export class ZipFile {
       }
     }
     if (found) {
-      const count = header.readInt16LE(10);
-      const size = header.readUInt32LE(12);
-      const offset = header.readUInt32LE(16);
+      const count = readInt16LE(header, 10);
+      const size = readUInt32LE(header, 12);
+      const offset = readUInt32LE(header, 16);
       return { count, size, offset };
     } else {
       throw new Error('Unable to find EOCD record');
@@ -98,25 +85,24 @@ export class ZipFile {
   async loadCentralDirectory() {
     const records = [];
     const { size, offset } = await this.findCentralDirectory();
-    const buffer = Buffer.alloc(size);
-    await this.file.read(buffer, 0, size, offset);
+    const buffer = await this.fetch(size, offset);
     let index = 0;
     while (index < size) {
-      const signature = buffer.readUInt32LE(index);
+      const signature = readUInt32LE(buffer, index);
       if (signature !== 0x02014b50) {
         throw new Error('Invalid CD record');
       }
-      const nameLength = buffer.readUInt16LE(index + 28);
-      const extraLength = buffer.readUInt16LE(index + 30);
-      const commentLength = buffer.readUInt16LE(index + 32)
+      const nameLength = readUInt16LE(buffer, index + 28);
+      const extraLength = readUInt16LE(buffer, index + 30);
+      const commentLength = readUInt16LE(buffer, index + 32)
       const headerSize = 46 + nameLength + extraLength + commentLength;
-      const header = getBufferSlice(buffer, index, headerSize);
-      const flags = header.readUInt16LE(8);
-      const compression = header.readUInt16LE(10);
-      const compressedSize = header.readUInt32LE(20);
-      const uncompressedSize = header.readUInt32LE(24);
+      const header = getArraySlice(buffer, index, headerSize);
+      const flags = readUInt16LE(header, 8);
+      const compression = readUInt16LE(header, 10);
+      const compressedSize = readUInt32LE(header, 20);
+      const uncompressedSize = readUInt32LE(header, 24);
       const name = extractName(header, 46, nameLength, flags);
-      const localHeaderOffset = header.readUInt32LE(42);
+      const localHeaderOffset = readUInt32LE(header, 42);
       records.push({
         name,
         compression,
@@ -144,9 +130,10 @@ export function modifyZip(stream, cb) {
     let transformedFileAttributes = {};
     let omitDataDescriptor = false;
     let dataDescriptorSignature = null;
-    for await (let chunk of stream) {
+    for await (const chunkBuffer of stream) {
+      let chunk = new Uint8Array(chunkBuffer);
       if (leftOver) {
-        chunk = Buffer.concat([ leftOver, chunk ]);
+        chunk = concatArrays(leftOver, chunk);
         leftOver = null;
       }
       let index = 0;
@@ -154,16 +141,16 @@ export function modifyZip(stream, cb) {
         if (dataRemaining === 0) {
           // expecting a header of some sort
           try {
-            const signature = chunk.readUInt32LE(index);
+            const signature = readUInt32LE(chunk, index);
             if (signature === 0x04034b50) {
               // file record
-              const nameLength = chunk.readUInt16LE(index + 26);
-              const extraLength = chunk.readUInt16LE(index + 28);
+              const nameLength = readUInt16LE(chunk, index + 26);
+              const extraLength = readUInt16LE(chunk, index + 28);
               const headerSize = 30 + nameLength + extraLength;
-              const header = getBufferSlice(chunk, index, headerSize);
-              const flags = header.readUInt16LE(6);
-              const compression = header.readUInt16LE(8);
-              const compressedSize = header.readUInt32LE(18);
+              const header = getArraySlice(chunk, index, headerSize);
+              const flags = readUInt16LE(header, 6);
+              const compression = readUInt16LE(header, 8);
+              const compressedSize = readUInt32LE(header, 18);
               const name = extractName(header, 30, nameLength, flags);
               const transform = cb(name) || null;
               if (transform instanceof Function) {
@@ -189,7 +176,7 @@ export function modifyZip(stream, cb) {
               dataRead = 0;
             } else if (signature === 0x08074b50) {
               // data descriptor
-              const descriptor = getBufferSlice(chunk, index, 16);
+              const descriptor = getArraySlice(chunk, index, 16);
               if (!omitDataDescriptor) {
                 currentOffset += 16;
                 yield descriptor;
@@ -197,25 +184,25 @@ export function modifyZip(stream, cb) {
               index += descriptor.length;
             } else if (signature === 0x02014b50) {
               // central directory record
-              const nameLength = chunk.readUInt16LE(index + 28);
-              const extraLength = chunk.readUInt16LE(index + 30);
-              const commentLength = chunk.readUInt16LE(index + 32)
+              const nameLength = readUInt16LE(chunk, index + 28);
+              const extraLength = readUInt16LE(chunk, index + 30);
+              const commentLength = readUInt16LE(chunk, index + 32)
               const headerSize = 46 + nameLength + extraLength + commentLength;
-              const header = getBufferSlice(chunk, index, headerSize);
-              const flags = header.readUInt16LE(8);
+              const header = getArraySlice(chunk, index, headerSize);
+              const flags = readUInt16LE(header, 8);
               const name = extractName(header, 46, nameLength, flags);
               const localHeaderOffset = localHeaderOffsets[name];
               if (localHeaderOffset !== undefined) {
                 // update local header position
-                header.writeUInt32LE(localHeaderOffset, 42);
+                writeUInt32LE(header, localHeaderOffset, 42);
                 const newAttributes = transformedFileAttributes[name];
                 if (newAttributes) {
                   const { crc32, compressedSize, uncompressedSize } = newAttributes;
                   // update these as well
-                  header.writeUInt16LE(flags & ~0x0008, 8);
-                  header.writeUInt32LE(crc32, 16);
-                  header.writeUInt32LE(compressedSize, 20);
-                  header.writeUInt32LE(uncompressedSize, 24);
+                  writeUInt16LE(header, flags & ~0x0008, 8);
+                  writeUInt32LE(header, crc32, 16);
+                  writeUInt32LE(header, compressedSize, 20);
+                  writeUInt32LE(header, uncompressedSize, 24);
                 }
                 if (centralDirectoryOffset === 0) {
                   centralDirectoryOffset = currentOffset;
@@ -228,14 +215,14 @@ export function modifyZip(stream, cb) {
               index += headerSize;
             } else if (signature === 0x06054b50) {
               // end of central directory record
-              const commentLength = chunk.readUInt16LE(index + 20)
+              const commentLength = readUInt16LE(chunk, index + 20)
               const headerSize = 22 + commentLength;
-              const header = getBufferSlice(chunk, index, headerSize);
+              const header = getArraySlice(chunk, index, headerSize);
               // update record
-              header.writeUInt16LE(centralDirectoryRecordCount, 8);
-              header.writeUInt16LE(centralDirectoryRecordCount, 10);
-              header.writeUInt32LE(centralDirectorySize, 12);
-              header.writeUInt32LE(centralDirectoryOffset, 16);
+              writeUInt16LE(header, centralDirectoryRecordCount, 8);
+              writeUInt16LE(header, centralDirectoryRecordCount, 10);
+              writeUInt32LE(header, centralDirectorySize, 12);
+              writeUInt32LE(header, centralDirectoryOffset, 16);
               currentOffset += headerSize;
               yield header;
               index += headerSize;
@@ -258,12 +245,12 @@ export function modifyZip(stream, cb) {
           let data = chunk.subarray(index, index + dataRemaining);
           if (dataRemaining === Infinity) {
             // don't know the length, look for data descriptor
-            const ddIndex = data.indexOf(dataDescriptorSignature);
+            const ddIndex = findArray(data, dataDescriptorSignature);
             let needMore = false;
             if (ddIndex !== -1) {
               if (ddIndex + 16 < data.length) {
-                const header = getBufferSlice(data, ddIndex, 16);
-                const compressedSize = header.readUInt32LE(8);
+                const header = getArraySlice(data, ddIndex, 16);
+                const compressedSize = readUInt32LE(header, 8);
                 if (dataRead + ddIndex === compressedSize) {
                   data = data.subarray(0, ddIndex);
                   dataRemaining = data.length;
@@ -273,11 +260,11 @@ export function modifyZip(stream, cb) {
               }
             } else {
               // in case the chunk ends in the middle of the data descriptor's signature
-              if (data.length >= 3 && Buffer.compare(data.subarray(-3), dataDescriptorSignature.subarray(0, -1)) === 0) {
+              if (data.length >= 3 && compareArrays(data.subarray(-3), dataDescriptorSignature.subarray(0, -1)) === 0) {
                 needMore = true;
-              } else if (data.length >= 2 && Buffer.compare(data.subarray(-2), dataDescriptorSignature.subarray(0, -2)) === 0) {
+              } else if (data.length >= 2 && compareArrays(data.subarray(-2), dataDescriptorSignature.subarray(0, -2)) === 0) {
                 needMore = true;
-              } else if (data.length >= 1 && Buffer.compare(data.subarray(-1), dataDescriptorSignature.subarray(0, -3)) === 0) {
+              } else if (data.length >= 1 && compareArrays(data.subarray(-1), dataDescriptorSignature.subarray(0, -3)) === 0) {
                 needMore = true;
               }
             }
@@ -301,8 +288,9 @@ export function modifyZip(stream, cb) {
             const { header, flags, name, compression, transform, data } = extraction;
             const uncompressedData = await decompressData(data, compression);
             let transformedData = await transform(uncompressedData);
-            if (!(transformedData instanceof Buffer) && transformedData !== null) {
-              transformedData = Buffer.from(`${transformedData}`);
+            if (!(transformedData instanceof Uint8Array) && transformedData !== null) {
+              const encoder = new TextEncoder();
+              transformedData = encoder.encode(`${transformedData}`);
             }
             if (transformedData) {
               const crc32 = calcuateCRC32(transformedData);
@@ -313,10 +301,10 @@ export function modifyZip(stream, cb) {
               transformedFileAttributes[name] = { crc32, compressedSize, uncompressedSize };
               localHeaderOffsets[name] = currentOffset;
               // update header
-              header.writeUInt16LE(flags & ~0x0008, 6);
-              header.writeUInt32LE(crc32, 14);
-              header.writeUInt32LE(compressedSize, 18);
-              header.writeUInt32LE(uncompressedSize, 22);
+              writeUInt16LE(header, flags & ~0x0008, 6);
+              writeUInt32LE(header, crc32, 14);
+              writeUInt32LE(header, compressedSize, 18);
+              writeUInt32LE(header, uncompressedSize, 22);
               // output the header and transformed data
               currentOffset += header.length;
               yield header;
@@ -329,7 +317,7 @@ export function modifyZip(stream, cb) {
       }
     }
   };
-  return Readable.from(processStream());
+  return createStream(processStream());
 }
 
 export function createZip(items) {
@@ -356,16 +344,16 @@ export function createZip(items) {
       const headerOffset = currentOffset;
       const headerSize = 30 + nameLength + extraLength;
       const header = Buffer.alloc(headerSize);
-      header.writeUInt32LE(0x04034b50, 0);
-      header.writeUInt16LE(zipVersion, 4);
-      header.writeUInt16LE(flags, 6);
-      header.writeUInt16LE(compression, 8);
-      header.writeUInt32LE(lastModified, 10);
-      header.writeUInt32LE(crc32, 14);
-      header.writeUInt32LE(compressedSize, 18);
-      header.writeUInt32LE(uncompressedSize, 22);
-      header.writeUInt16LE(nameLength, 26);
-      header.writeUInt16LE(extraLength, 28);
+      writeUInt32LE(header, 0x04034b50, 0);
+      writeUInt16LE(header, zipVersion, 4);
+      writeUInt16LE(header, flags, 6);
+      writeUInt16LE(header, compression, 8);
+      writeUInt32LE(header, lastModified, 10);
+      writeUInt32LE(header, crc32, 14);
+      writeUInt32LE(header, compressedSize, 18);
+      writeUInt32LE(header, uncompressedSize, 22);
+      writeUInt16LE(header, nameLength, 26);
+      writeUInt16LE(header, extraLength, 28);
       header.write(name, 30);
       // save info for central directory
       const record = {
@@ -413,22 +401,22 @@ export function createZip(items) {
         comment,
       } = record;
       const headerSize = 46 + nameLength + extraLength + commentLength;
-      const header = Buffer.alloc(headerSize);
-      header.writeUInt32LE(0x02014b50, 0);
-      header.writeUInt16LE(zipVersion, 4);
-      header.writeUInt16LE(zipVersion, 6);
-      header.writeUInt16LE(flags, 8);
-      header.writeUInt16LE(compression, 10);
-      header.writeUInt32LE(lastModified, 12);
-      header.writeUInt32LE(crc32, 16);
-      header.writeUInt32LE(compressedSize, 20);
-      header.writeUInt32LE(uncompressedSize, 24);
-      header.writeUInt16LE(nameLength, 28);
-      header.writeUInt16LE(extraLength, 30);
-      header.writeUInt16LE(commentLength, 32);
-      header.writeUInt16LE(internalAttributes, 36)
-      header.writeUInt32LE(externalAttributes, 38);
-      header.writeUInt32LE(headerOffset, 42);
+      const header = new Uint8Array(headerSize);
+      writeUInt32LE(header, 0x02014b50, 0);
+      writeUInt16LE(header, zipVersion, 4);
+      writeUInt16LE(header, zipVersion, 6);
+      writeUInt16LE(header, flags, 8);
+      writeUInt16LE(header, compression, 10);
+      writeUInt32LE(header, lastModified, 12);
+      writeUInt32LE(header, crc32, 16);
+      writeUInt32LE(header, compressedSize, 20);
+      writeUInt32LE(header, uncompressedSize, 24);
+      writeUInt16LE(header, nameLength, 28);
+      writeUInt16LE(header, extraLength, 30);
+      writeUInt16LE(header, commentLength, 32);
+      writeUInt16LE(header, internalAttributes, 36)
+      writeUInt32LE(header, externalAttributes, 38);
+      writeUInt32LE(header, headerOffset, 42);
       header.write(name, 46);
       if (comment) {
         header.write(comment, 46 + nameLength + extraLength);
@@ -438,21 +426,32 @@ export function createZip(items) {
     }
     // end of central directory record
     const centralDirectorySize = currentOffset - centralDirectoryOffset;
-    const header = Buffer.alloc(22);
-    header.writeUInt32LE(0x06054b50, 0);
+    const header = new Uint8Array(22);
+    writeUInt32LE(header, 0x06054b50, 0);
     header.writeInt16LE(0, 4);
     header.writeInt16LE(0, 6);
     header.writeInt16LE(centralDirectory.length, 8);
     header.writeInt16LE(centralDirectory.length, 10);
-    header.writeUInt32LE(centralDirectorySize, 12);
-    header.writeUInt32LE(centralDirectoryOffset, 16);
+    writeUInt32LE(header, centralDirectorySize, 12);
+    writeUInt32LE(header, centralDirectoryOffset, 16);
     header.writeInt16LE(0, 20);
     yield header;
   };
-  return Readable.from(processStream());
+  return createStream(processStream());
 }
 
-function getBufferSlice(buffer, index, length) {
+function createStream(generator) {
+  return new ReadableStream({
+    async start(controller) {
+      for await (const chunk of generator) {
+        controller.enqueue(chunk);
+      }
+      controller.close();
+    }
+  });  
+}
+
+function getArraySlice(buffer, index, length) {
   if (index + length <= buffer.length) {
     return buffer.subarray(index, index + length);
   } else {
@@ -460,41 +459,102 @@ function getBufferSlice(buffer, index, length) {
   }
 }
 
+function concatArrays(a, b) {
+  var c = new Uint8Array(a.length + b.length);
+  c.set(a);
+  c.set(b, a.length);
+  return c;
+}
+
+function compareArrays(a, b) {
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] < b[i]) {
+      return -1;
+    } else if (a[i] > b[i]) {
+      return 1;
+    }
+  }
+  return a.length - b.length;
+}
+
+function findArray(a, b) {
+  let lastIndex = 0;
+  for(;;) {
+    const index = a.indexOf(b[0], lastIndex);
+    if (index !== -1) {
+      let match = true;
+      for (let i = 1, j = index + 1; i < b.length && j < a.length; i++, j++) {
+        if (a[j] !== b[i]) {
+          match = false;
+          break;
+        }
+      }
+      if (match) {
+        return index;
+      } else {
+        lastIndex = index + 1;
+      }
+    } else {
+      break;
+    }
+  }
+  return -1;
+}
+
+function readUInt16LE(buffer, offset = 0) {
+  if (buffer.length < offset + 2) {
+    throw new RangeError(`Attempt to access memory outside buffer bounds`);
+  }
+  return buffer[offset] | buffer[offset + 1] << 8;
+}
+
+function readUInt32LE(buffer, offset = 0) {
+  if (buffer.length < offset + 4) {
+    throw new RangeError(`Attempt to access memory outside buffer bounds`);
+  }
+  return buffer[offset] | buffer[offset + 1] << 8 | buffer[offset + 2] << 16 | buffer[offset + 3] << 24;
+}
+
+function writeUInt16LE(buffer, value, offset = 0) {
+  if (buffer.length < offset + 2) {
+    throw new RangeError(`Attempt to access memory outside buffer bounds`);
+  }
+  buffer[offset] = value & 0x000000FF;
+  buffer[offset + 1] = (value & 0x0000FF00) >> 8;
+}
+
+function writeUInt32LE(buffer, value, offset = 0) {
+  if (buffer.length < offset + 4) {
+    throw new RangeError(`Attempt to access memory outside buffer bounds`);
+  }
+  buffer[offset] = value & 0x000000FF;
+  buffer[offset + 1] = (value & 0x0000FF00) >> 8;
+  buffer[offset + 2] = (value & 0x00FF0000) >> 16;
+  buffer[offset + 3] = (value & 0xFF000000) >> 24;
+}
+
 function extractName(header, index, length, flags) {
   const raw = header.subarray(index, index + length);
   const encoding = (flags & 0x0800) ? 'utf8' : 'ascii';
-  return raw.toString(encoding);
+  const decoder = new TextDecoder(encoding);
+  return decoder.decode(raw);
 }
 
 export async function decompressData(buffer, type) {
+  buffer = normalize(buffer);
   if (type === 8) {
-    buffer = await new Promise((resolve, reject) => {
-      inflateRaw(normalize(buffer), (err, data) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(data);
-        }
-      });
-    });
+    buffer = inflateRaw(buffer);
   }
   return buffer;
 }
 
 export async function compressData(buffer, type) { 
+  buffer = normalize(buffer);
   if (type === 8) {
-    buffer = await new Promise((resolve, reject) => {
-      deflateRaw(normalize(buffer), (err, data) => {
-        // can't programmatically create a condition where deflateRaw would 
-        // run into an error
-        /* c8 ignore next 2 */
-        if (err) {
-          reject(err);
-        } else {
-          resolve(data);
-        }
-      });
-    });
+    if (buffer.length === undefined) {
+      throw new TypeError('Invalid input');
+    }
+    buffer = deflateRaw(buffer);
   }
   return buffer;
 }
@@ -502,7 +562,7 @@ export async function compressData(buffer, type) {
 function normalize(buffer) {
   if (Array.isArray(buffer)) {
     if (buffer.length === 1) {
-      return buffer[0];      
+      return buffer[0];
     } else {
       return Buffer.concat(buffer);
     }
@@ -538,9 +598,8 @@ function finalizeCRC32(crc) {
 }
 
 function updateCRC32(crc, buffer) {
-  const view = new Uint8Array(buffer);
-  for (let i = 0; i < view.length; i++) {
-    crc = (crc >>> 8) ^ crcTable[(crc ^ view[i]) & 0xff];
+  for (let i = 0; i < buffer.length; i++) {
+    crc = (crc >>> 8) ^ crcTable[(crc ^ buffer[i]) & 0xff];
   }
   return crc;
 }

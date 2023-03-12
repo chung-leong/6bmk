@@ -10,7 +10,7 @@ import {
 } from '../src/dictionary.js';
 
 describe('Dictionary', function() {
-  describe('#open()', function() {
+  describe('#open', function() {
     it('should open dictionary', async function() {
       const dict = new Dictionary({ locale: 'en-US', size: 'small' });
       await dict.open();
@@ -34,7 +34,7 @@ describe('Dictionary', function() {
       await dict.close();
     })
   })
-  describe('#getWordCount()', function() {
+  describe('#getWordCount', function() {
     it('should return the number of words with the given number of syllables', async function() {
       const dict = new Dictionary;
       await dict.open();
@@ -43,7 +43,7 @@ describe('Dictionary', function() {
       await dict.close();
     })
   })
-  describe('#getWord()', function() {
+  describe('#getWord', function() {
     it('should return a word with the given number of syllables', async function() {
       const dict = new Dictionary({ locale: 'en-US', size: 'small' });
       await dict.open();
