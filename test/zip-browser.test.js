@@ -2,8 +2,9 @@ import Chai, { expect } from 'chai';
 import ChaiAsPromised from 'chai-as-promised';
 import { Readable, pipeline } from 'stream';
 import { createServer } from 'http';
-import { readFileSync, createWriteStream } from 'fs';
+import { readFileSync, statSync, createWriteStream } from 'fs';
 import nodeFetch from 'node-fetch';
+import { calculateCRC32 } from '../src/utils.js';
 
 Chai.use(ChaiAsPromised);
 
@@ -15,31 +16,57 @@ import {
   ZipFile,
 } from '../src/zip-browser.js';
 
-describe('Zip functions (browser)', function() { 
+describe('Zip functions (browser)', function() {
+  const response = {}; 
   const server = createServer((req, res) => {
     const { url } = req;
     const root = url.endsWith('pptx') ? resolve(`../pptx`) : resolve(`./files`);
     const path = root + url;
+    let status = 404, headers = {}, body;
     try {
       const data = readFileSync(path);
+      const { mtime } = statSync(path);
       const range = req.headers.range;
+      const etag = calculateCRC32(data) + (response.etagSuffix ?? '');
       const m = /bytes=(\d+)-(\d+)/.exec(range) ?? /bytes=-(\d+)/.exec(range);
-      if (m?.length === 3) {
-        const offset = parseInt(m[1]), last = parseInt(m[2]) + 1;
-        res.writeHead(206);
-        res.end(data.subarray(offset, last));
-      } else if (m?.length === 2) {
-        const offset = -parseInt(m[1]);
-        res.writeHead(206);
-        res.end(data.subarray(offset));  
+      if (!response.omitEtag) {
+        headers['etag'] = etag;
+      }
+      const lastModified = new Date(response.lastModifiedOverride ?? mtime).toString();
+      if (!response.omitLastModified) {
+        headers['last-modified'] = lastModified;
+      }
+      if(m) {
+        const ifMatch = req.headers['if-match'];
+        if (ifMatch && ifMatch !== etag) {
+          status = 412;
+          throw new Error(`ETag mismatch: ${ifMatch} !== ${etag}`);
+        }
+        const ifModifiedSince = req.headers['if-modified-since'];
+        if (ifModifiedSince && ifModifiedSince !== lastModified) {
+          status = 412;
+          throw new Error(`File modified: ${lastModified}`);
+        }
+        status = 206;
+        if (m.length === 3) {
+          const offset = parseInt(m[1]), last = parseInt(m[2]) + 1;
+          body = data.subarray(offset, last);
+        } else if (m.length === 2) {
+          const offset = -parseInt(m[1]);
+          body = data.subarray(offset);  
+        }
       } else {
-        res.writeHead(200);
-        res.end(data);  
+        status = 200;
+        body = data;  
       }
     } catch (err) {
-      res.writeHead(404);
-      res.end(err.message);
+      body = err.message;
     }
+    if (response.truncateBody) {
+      body = body.subarray(0, response.truncateBody);
+    }
+    res.writeHead(status, headers);
+    res.end(body);
   });
   before(function(done) {
     server.listen(0, done);
@@ -52,6 +79,11 @@ describe('Zip functions (browser)', function() {
   })
   after(function(done) {
     server.close(done);
+  })
+  afterEach(function() {
+    for (const key in response) {
+      delete response[key]
+    }
   })
   describe('#decompressData', function() {
     it('should throw if the data is invalid', async function() {
@@ -443,6 +475,34 @@ describe('Zip functions (browser)', function() {
         const text = await zip.extractTextFile('three-files/LICENSE.txt');
         await zip.close();
         expect(text).to.include('GNU');
+      })
+      it('should be able to retrieve file after modification', async function() {
+        const url = createURL(server, 'three-files.zip');
+        const zip = new ZipFile(url);
+        await zip.open();
+        // force etag change
+        response.etagSuffix = '/123';
+        const text = await zip.extractTextFile('three-files/LICENSE.txt');
+        await zip.close();
+        expect(text).to.include('GNU');
+      })
+      it('should work when server does not return etag', async function() {
+        const url = createURL(server, 'three-files.zip');
+        const zip = new ZipFile(url);
+        response.omitEtag = true;
+        await zip.open();
+        const text = await zip.extractTextFile('three-files/LICENSE.txt');
+        await zip.close();
+        expect(text).to.include('GNU');
+      })
+      it('should throw when there is a size mismatch', async function() {
+        const url = createURL(server, 'three-files.zip');
+        const zip = new ZipFile(url);
+        await zip.open();
+        response.truncateBody = -100;
+        const promise = zip.extractTextFile('three-files/LICENSE.txt');
+        await zip.close();
+        await expect(promise).to.be.eventually.rejected;
       })
       it('should extract a text file with Unicode name', async function() {
         const url = createURL(server, 'unicode.zip');

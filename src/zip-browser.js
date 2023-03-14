@@ -1,10 +1,11 @@
 import { inflateRaw, deflateRaw } from 'pako';
+import { calculateCRC32, getDOSDatetime } from './utils.js';
 
 export class ZipFile {
   constructor(url) {
     this.url = url;
-    this.etag = undefined;
-    this.lastModified = undefined;
+    this.etag = null;
+    this.lastModified = null;
     this.centralDirectory = null;
     this.centralDirectoryOffset;
   }
@@ -61,8 +62,8 @@ export class ZipFile {
         return data;
       } catch (err) {
         if (err instanceof HTTPError && err.status === 412) {
-          this.etag = undefined;
-          this.lastModified = undefined;
+          this.etag = null;
+          this.lastModified = null;
           this.centralDirectory = null;
           if (attempt < 3) {
             this.centralDirectory = await this.loadCentralDirectory();
@@ -361,7 +362,7 @@ export function modifyZip(stream, cb) {
               transformedData = encoder.encode(`${transformedData}`);
             }
             if (transformedData) {
-              const crc32 = calcuateCRC32(transformedData);
+              const crc32 = calculateCRC32(transformedData);
               const compressedData = await compressData(transformedData, compression);
               const compressedSize = compressedData.length;
               const uncompressedSize = transformedData.length;
@@ -398,7 +399,7 @@ export function createZip(items) {
     // local headers and data
     for await (const { name, data, comment, isFile = true, isText = false } of items) {
       // calculate CRC32 and compress data
-      const crc32 = (data) ? calcuateCRC32(data) : 0;
+      const crc32 = (data) ? calculateCRC32(data) : 0;
       const compression = (data && data.length > 32) ? 8 : 0;
       const compressedData = (data) ? await compressData(data, compression) : null;
       // create local header
@@ -541,13 +542,13 @@ function compareArrays(a, b) {
   return a.length - b.length;
 }
 
-function findArray(a, b) {
+export function findArray(a, b) {
   let lastIndex = 0;
   for(;;) {
     const index = a.indexOf(b[0], lastIndex);
-    if (index !== -1) {
+    if (index !== -1 && index + b.length <= a.length) {
       let match = true;
-      for (let i = 1, j = index + 1; i < b.length && j < a.length; i++, j++) {
+      for (let i = 1, j = index + 1; i < b.length; i++, j++) {
         if (a[j] !== b[i]) {
           match = false;
           break;
@@ -565,21 +566,21 @@ function findArray(a, b) {
   return -1;
 }
 
-function readUInt16LE(buffer, offset = 0) {
+export function readUInt16LE(buffer, offset = 0) {
   if (buffer.length < offset + 2) {
     throw new RangeError(`Attempt to access memory outside buffer bounds`);
   }
   return buffer[offset] | buffer[offset + 1] << 8;
 }
 
-function readUInt32LE(buffer, offset = 0) {
+export function readUInt32LE(buffer, offset = 0) {
   if (buffer.length < offset + 4) {
     throw new RangeError(`Attempt to access memory outside buffer bounds`);
   }
   return buffer[offset] | buffer[offset + 1] << 8 | buffer[offset + 2] << 16 | buffer[offset + 3] << 24;
 }
 
-function writeUInt16LE(buffer, value, offset = 0) {
+export function writeUInt16LE(buffer, value, offset = 0) {
   if (buffer.length < offset + 2) {
     throw new RangeError(`Attempt to access memory outside buffer bounds`);
   }
@@ -587,7 +588,7 @@ function writeUInt16LE(buffer, value, offset = 0) {
   buffer[offset + 1] = (value & 0x0000FF00) >> 8;
 }
 
-function writeUInt32LE(buffer, value, offset = 0) {
+export function writeUInt32LE(buffer, value, offset = 0) {
   if (buffer.length < offset + 4) {
     throw new RangeError(`Attempt to access memory outside buffer bounds`);
   }
@@ -641,53 +642,21 @@ function normalize(buffer) {
     if (buffer.length === 1) {
       return buffer[0];
     } else {
-      return Buffer.concat(buffer);
+      let size = 0;
+      for (const chunk of buffer) {
+        size += chunk.length;
+      }
+      const combined = new Uint8Array(size);
+      let offset = 0;
+      for (const chunk of buffer) {
+        combined.set(chunk, offset);
+        offset += chunk.length;
+      }
+      return combined;
     }
   } else {
     return buffer;
   }
-}
-
-function calcuateCRC32(buffer) {
-  let crc = initializeCRC32();
-  crc = updateCRC32(crc, buffer);
-  return finalizeCRC32(crc);
-}
-
-let crcTable = null;
-
-function initializeCRC32() {
-  if (!crcTable) {
-    crcTable = new Uint32Array(256);
-    for (let n = 0, c = 0; n < 256; n++) {
-      c = n;
-      for (let k = 0; k < 8; k++) {
-        c = ((c & 0x01) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1));
-      }
-      crcTable[n] = c;
-    }
-  }
-  return 0 ^ 0xFFFFFFFF;
-}
-
-function finalizeCRC32(crc) {
-  return (crc ^ 0xFFFFFFFF) >>> 0;
-}
-
-function updateCRC32(crc, buffer) {
-  for (let i = 0; i < buffer.length; i++) {
-    crc = (crc >>> 8) ^ crcTable[(crc ^ buffer[i]) & 0xff];
-  }
-  return crc;
-}
-
-function getDOSDatetime(date) {
-  return (date.getFullYear() - 1980) << 25
-       | (date.getMonth() + 1)       << 21
-       |  date.getDate()             << 16
-       |  date.getHours()            << 11
-       |  date.getMinutes()          <<  5
-       | (date.getSeconds() >> 1);
 }
 
 class HTTPError extends Error { 
