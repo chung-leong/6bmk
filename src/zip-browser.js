@@ -72,7 +72,8 @@ export class ZipFile {
         }
         throw err;
       }  
-    }
+      /* c8 ignore next */
+    }    
   }
 
   async extractTextFile(name, encoding = 'utf8') {

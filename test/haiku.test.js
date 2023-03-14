@@ -49,9 +49,19 @@ describe('Haiku generation', function() {
   })
   describe('#generateHaiku', async function() {
     it('should generate a single haiku', async function() {
-      const haiku = await generateHaiku(10);
+      const haiku = await generateHaiku();
       const result = isHaiku(haiku);
       expect(result).to.be.true;
+    })
+    it('should generate a haiku from a specified zip file', async function() {
+      const file = resolve('./files/dict.zip')
+      const haiku = await generateHaiku({ file });
+      const result = isHaiku(haiku);
+      expect(result).to.be.true;
+      const words = [ 'January', 'Febuary', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December' ];
+      for (const word of haiku.split(/\s+/)) {
+        expect(words).to.contain(word);
+      };
     })
   })
   describe('#normalizeHaiku', function() {

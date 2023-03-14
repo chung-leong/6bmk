@@ -8,13 +8,20 @@ import { calculateCRC32 } from '../src/utils.js';
 
 Chai.use(ChaiAsPromised);
 
-import {
+import {  
   decompressData,
   compressData,
+  findArray,
+  readUInt16LE,
+  readUInt32LE,
+  writeUInt16LE,
+  writeUInt32LE,
+} from '../src/zip-browser.js';
+import {  
   modifyZip,
   createZip,
   ZipFile,
-} from '../src/zip-browser.js';
+} from '../browser.js';
 
 describe('Zip functions (browser)', function() {
   const response = {}; 
@@ -85,14 +92,64 @@ describe('Zip functions (browser)', function() {
       delete response[key]
     }
   })
+  describe('#findArray', function() {
+    it('should find sequence', function() {
+      const a = new Uint8Array([ 1, 2, 3, 1, 2, 3, 4, 5 ]);
+      const b = new Uint8Array([ 2, 3, 4 ]);
+      const index = findArray(a, b);
+      expect(index).to.equal(4);
+    })
+    it('should return -1 when sequence is not found', function() {
+      const a = new Uint8Array([ 1, 2, 3, 1, 2, 3, 4, 5 ]);
+      const b = new Uint8Array([ 2, 3, 4, 5, 6 ]);
+      const c = new Uint8Array([ 88 ]);
+      const index1 = findArray(a, b);
+      expect(index1).to.equal(-1);
+      const index2 = findArray(a, c);
+      expect(index2).to.equal(-1);
+    })
+  })
+  describe('#readUInt16LE', function() {
+    it('should throw if index lies outside of array', function() {
+      const a = new Uint8Array([ 1, 2, 3 ]);
+      expect(() => readUInt16LE(a, 2)).to.throw();
+    })
+  })
+  describe('#readUInt32LE', function() {
+    it('should throw if index lies outside of array', function() {
+      const a = new Uint8Array([ 1, 2, 3 ]);
+      expect(() => readUInt32LE(a, 2)).to.throw();
+    })
+  })
+  describe('#writeUInt16LE', function() {
+    it('should throw if index lies outside of array', function() {
+      const a = new Uint8Array([ 1, 2, 3 ]);
+      expect(() => writeUInt16LE(a, 2, 2)).to.throw();
+    })    
+  })
+  describe('#writeUInt32LE', function() {
+    it('should throw if index lies outside of array', function() {
+      const a = new Uint8Array([ 1, 2, 3 ]);
+      expect(() => writeUInt32LE(a, 2, 2)).to.throw();
+    })        
+  })
   describe('#decompressData', function() {
+    it('should throw if the input is invalid', async function() {
+      const promise = decompressData(false, 8);
+      await expect(promise).to.eventually.be.rejected;
+    })
     it('should throw if the data is invalid', async function() {
       const promise = decompressData([ new Uint8Array(0) ], 8);
       await expect(promise).to.eventually.be.rejected;
     })
+    it('should throw if the data is corrupted', async function() {
+      const data = new Uint8Array([ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+      const promise = decompressData(data, 8);
+      await expect(promise).to.eventually.be.rejected;
+    })
   })
   describe('#compressData', function() {
-    it('should throw if the data is invalid', async function() {
+    it('should throw if the input is invalid', async function() {
       const promise = compressData(false, 8);
       await expect(promise).to.eventually.be.rejected;
     })

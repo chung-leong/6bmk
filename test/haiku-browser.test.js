@@ -66,6 +66,18 @@ describe('Haiku generation (browser)', function() {
       const result = isHaiku(haiku);
       expect(result).to.be.true;
     })
+
+    it('should generate a haiku from a specified zip file', async function() {
+      const { port } = server.address();
+      const url = new URL(`http://localhost:${port}/test/files/dict.zip`);
+      const haiku = await generateHaiku({ file: url });
+      const result = isHaiku(haiku);
+      expect(result).to.be.true;
+      const words = [ 'January', 'Febuary', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December' ];
+      for (const word of haiku.split(/\s+/)) {
+        expect(words).to.contain(word);
+      };
+    })
   })
 })
 
