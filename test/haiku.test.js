@@ -58,7 +58,7 @@ describe('Haiku generation', function() {
       const haiku = await generateHaiku({ file });
       const result = isHaiku(haiku);
       expect(result).to.be.true;
-      const words = [ 'January', 'Febuary', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December' ];
+      const words = [ 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December' ];
       for (const word of haiku.split(/\s+/)) {
         expect(words).to.contain(word);
       };
