@@ -1,19 +1,22 @@
 import { expect } from 'chai';
 import { countSyllables } from './count-syllables.js';
-import { phonesForWord, syllableCount } from 'pronouncing';
 import { Dictionary } from '../src/dictionary.js';
+import { ZipFile } from '../src/zip.js';
 
 import {
   createRandomSentence,
+} from '../src/haiku.js';
+import {
   generateMultipleHaiku,
   generateHaiku,
-  getHaikuHash,
-} from '../src/haiku.js';
+  normalizeHaiku,
+} from '../index.js';
 
 describe('Haiku generation', function() {
   describe('#createRandomSentence', function() {
     it('should generate a random sentence of the correct length', async function() {
-      const dict = new Dictionary();
+      const zip = new ZipFile(resolve('../dict/en-US-small.zip'));
+      const dict = new Dictionary(zip);
       await dict.open();
       for (let i = 0; i < 10; i++) {
         const sentence = await createRandomSentence(dict, 7);
@@ -51,32 +54,28 @@ describe('Haiku generation', function() {
       expect(result).to.be.true;
     })
   })
-  describe('#getHaikuHash', function() {
+  describe('#normalizeHaiku', function() {
     const base = 'the west wind whispered\nand touched the eyelids of spring\nher eyes Primroses';
-    it('should generate a string with 40 characters', function() {
-      const hash = getHaikuHash(base);
-      expect(hash).to.have.lengthOf(40);
-    })
-    it('should generate the same hash regardless of cases', function() {
+    it('should generate the same text regardless of cases', function() {
       const test = 'The west wind whispered\nAnd touched the eyelids of spring\nHer eyes Primroses'
-      const hash1 = getHaikuHash(base);
-      const hash2 = getHaikuHash(test);
-      expect(hash1).to.equal(hash2);
+      const text1 = normalizeHaiku(base);
+      const text2 = normalizeHaiku(test);
+      expect(text1).to.equal(text2);
     })
-    it('should generate the same hash regardless of punctuations', function() {
+    it('should generate the same text regardless of punctuations', function() {
       const test = 'The west wind whispered,\nAnd touched the eyelids of spring:\nHer eyes, Primroses'
-      const hash1 = getHaikuHash(base);
-      const hash2 = getHaikuHash(test);
-      expect(hash1).to.equal(hash2);
+      const text1 = normalizeHaiku(base);
+      const text2 = normalizeHaiku(test);
+      expect(text1).to.equal(text2);
     })
-    it('should generate the same hash when there are extra linefeeds', function() {
+    it('should generate the same text when there are extra linefeeds', function() {
       const test = 'The west wind whispered,\nAnd touched the eyelids of spring:\nHer eyes, Primroses\n\n\n'
-      const hash1 = getHaikuHash(base);
-      const hash2 = getHaikuHash(test);
-      expect(hash1).to.equal(hash2);
+      const text1 = normalizeHaiku(base);
+      const text2 = normalizeHaiku(test);
+      expect(text1).to.equal(text2);
     })
     it('should throw if argument is not a string', function() {
-      expect(() => getHaikuHash()).to.throw();
+      expect(() => normalizeHaiku()).to.throw();
     })
   })
 })
@@ -85,4 +84,8 @@ function isHaiku(haiku) {
   const filtered = haiku.toLowerCase().replace(/[^\s\w]+/g, '');
   const [ l1, l2, l3 ] = filtered.split(/[\r\n]+/).map(countSyllables);
   return l1 === 5 && l2 === 7 && l3 === 5;
+}
+
+function resolve(path) {
+  return (new URL(path, import.meta.url)).pathname;
 }

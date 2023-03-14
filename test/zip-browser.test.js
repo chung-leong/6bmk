@@ -2,7 +2,7 @@ import Chai, { expect } from 'chai';
 import ChaiAsPromised from 'chai-as-promised';
 import { Readable, pipeline } from 'stream';
 import { createServer } from 'http';
-import { createReadStream, createWriteStream } from 'fs';
+import { readFileSync, createWriteStream } from 'fs';
 import nodeFetch from 'node-fetch';
 
 Chai.use(ChaiAsPromised);
@@ -20,15 +20,26 @@ describe('Zip functions (browser)', function() {
     const { url } = req;
     const root = url.endsWith('pptx') ? resolve(`../pptx`) : resolve(`./files`);
     const path = root + url;
-    const stream = createReadStream(path);
-    stream.pipe(res);
-    stream.on('open', () => {
-      res.writeHead(200, { 'Content-Type': 'application/zip' });
-    })
-    stream.on('error', (err) => {
+    try {
+      const data = readFileSync(path);
+      const range = req.headers.range;
+      const m = /bytes=(\d+)-(\d+)/.exec(range) ?? /bytes=-(\d+)/.exec(range);
+      if (m?.length === 3) {
+        const offset = parseInt(m[1]), last = parseInt(m[2]) + 1;
+        res.writeHead(206);
+        res.end(data.subarray(offset, last));
+      } else if (m?.length === 2) {
+        const offset = -parseInt(m[1]);
+        res.writeHead(206);
+        res.end(data.subarray(offset));  
+      } else {
+        res.writeHead(200);
+        res.end(data);  
+      }
+    } catch (err) {
       res.writeHead(404);
       res.end(err.message);
-    });
+    }
   });
   before(function(done) {
     server.listen(0, done);
@@ -44,7 +55,7 @@ describe('Zip functions (browser)', function() {
   })
   describe('#decompressData', function() {
     it('should throw if the data is invalid', async function() {
-      const promise = decompressData([ new Uint8Array(3) ], 8);
+      const promise = decompressData([ new Uint8Array(0) ], 8);
       await expect(promise).to.eventually.be.rejected;
     })
   })
@@ -343,8 +354,8 @@ describe('Zip functions (browser)', function() {
   describe('ZipFile', function() {
     describe('#open', function() {
       it('should load the central directory', async function() {
-        const path = resolve('./files/three-files.zip');
-        const zip = new ZipFile(path);
+        const url = createURL(server, 'three-files.zip');
+        const zip = new ZipFile(url);
         await zip.open();
         const cd = zip.centralDirectory;
         await zip.close();
@@ -352,8 +363,8 @@ describe('Zip functions (browser)', function() {
         expect(cd[1]).to.have.property('uncompressedSize', 32474);
       })
       it('should find the central directory when there is 1 extra byte', async function() {
-        const path = resolve('./files/three-files-x1.zip');
-        const zip = new ZipFile(path);
+        const url = createURL(server, 'three-files-x1.zip');
+        const zip = new ZipFile(url);
         await zip.open();
         const cd = zip.centralDirectory;
         await zip.close();
@@ -361,8 +372,8 @@ describe('Zip functions (browser)', function() {
         expect(cd[1]).to.have.property('uncompressedSize', 32474);
       })
       it('should find the central directory when there is 2 extra bytes', async function() {
-        const path = resolve('./files/three-files-x2.zip');
-        const zip = new ZipFile(path);
+        const url = createURL(server, 'three-files-x2.zip');
+        const zip = new ZipFile(url);
         await zip.open();
         const cd = zip.centralDirectory;
         await zip.close();
@@ -370,8 +381,8 @@ describe('Zip functions (browser)', function() {
         expect(cd[1]).to.have.property('uncompressedSize', 32474);
       })
       it('should find the central directory when there is 3 extra bytes', async function() {
-        const path = resolve('./files/three-files-x3.zip');
-        const zip = new ZipFile(path);
+        const url = createURL(server, 'three-files-x3.zip');
+        const zip = new ZipFile(url);
         await zip.open();
         const cd = zip.centralDirectory;
         await zip.close();
@@ -379,8 +390,8 @@ describe('Zip functions (browser)', function() {
         expect(cd[1]).to.have.property('uncompressedSize', 32474);
       })
       it('should find the central directory when there is 5 extra bytes', async function() {
-        const path = resolve('./files/three-files-x5.zip');
-        const zip = new ZipFile(path);
+        const url = createURL(server, 'three-files-x5.zip');
+        const zip = new ZipFile(url);
         await zip.open();
         const cd = zip.centralDirectory;
         await zip.close();
@@ -388,36 +399,36 @@ describe('Zip functions (browser)', function() {
         expect(cd[1]).to.have.property('uncompressedSize', 32474);
       })
       it('should throw when eof-of-central-directory record cannot be found', async function() {
-        const path = resolve('./files/three-files-bad-eocd.zip');
-        const zip = new ZipFile(path);
+        const url = createURL(server, 'three-files-bad-eocd.zip');
+        const zip = new ZipFile(url);
         const promise = zip.open();
         await expect(promise).to.eventually.be.rejected;
       })
       it('should throw when central-directory record is corrupted', async function() {
-        const path = resolve('./files/three-files-bad-cdh.zip');
-        const zip = new ZipFile(path);
+        const url = createURL(server, 'three-files-bad-cdh.zip');
+        const zip = new ZipFile(url);
         const promise = zip.open();
         await expect(promise).to.eventually.be.rejected;
       })
     })
     describe('#extractFile', function() {
       it('should throw if a file has not been opened yet', async function() {
-        const path = resolve('./files/three-files.zip');
-        const zip = new ZipFile(path);
+        const url = createURL(server, 'three-files.zip');
+        const zip = new ZipFile(url);
         const promise = zip.extractFile('three-files/LICENSE.txt');
         await expect(promise).to.eventually.be.rejected;
       })
       it('should throw if a local header is corrupted', async function() {
-        const path = resolve('./files/three-files-bad-lh.zip');
-        const zip = new ZipFile(path);
+        const url = createURL(server, 'three-files-bad-lh.zip');
+        const zip = new ZipFile(url);
         await zip.open();
         const promise = zip.extractFile('three-files/LICENSE.txt');
         await expect(promise).to.eventually.be.rejected;
         await zip.close();
       })
       it('should throw if a compressed size in CD is corrupted', async function() {
-        const path = resolve('./files/three-files-bad-size.zip');
-        const zip = new ZipFile(path);
+        const url = createURL(server, 'three-files-bad-size.zip');
+        const zip = new ZipFile(url);
         await zip.open();
         const promise = zip.extractFile('three-files/LICENSE.txt');
         await expect(promise).to.eventually.be.rejected;
@@ -426,24 +437,24 @@ describe('Zip functions (browser)', function() {
     })
     describe('#extractTextFile', function() {
       it('should extract a text file', async function() {
-        const path = resolve('./files/three-files.zip');
-        const zip = new ZipFile(path);
+        const url = createURL(server, 'three-files.zip');
+        const zip = new ZipFile(url);
         await zip.open();
         const text = await zip.extractTextFile('three-files/LICENSE.txt');
         await zip.close();
         expect(text).to.include('GNU');
       })
       it('should extract a text file with Unicode name', async function() {
-        const path = resolve('./files/unicode.zip');
-        const zip = new ZipFile(path);
+        const url = createURL(server, 'unicode.zip');
+        const zip = new ZipFile(url);
         await zip.open();
         const text = await zip.extractTextFile('szczęście.txt');
         await zip.close();
         expect(text).to.include('szczęście');
       })
       it('should throw when file is not in archive', async function() {
-        const path = resolve('./files/unicode.zip');
-        const zip = new ZipFile(path);
+        const url = createURL(server, 'unicode.zip');
+        const zip = new ZipFile(url);
         await zip.open();
         await expect(zip.extractTextFile('cześć.txt')).to.eventually.be.rejected;
         await zip.close();
@@ -452,9 +463,13 @@ describe('Zip functions (browser)', function() {
   })
 })
 
-async function createHTTPStream(server, filename) {
+function createURL(server, filename) {
   const { port } = server.address();
-  const url = `http://localhost:${port}/${filename}`;
+  return `http://localhost:${port}/${filename}`;
+}
+
+async function createHTTPStream(server, filename) {
+  const url = createURL(server, filename);
   const res = await fetch(url);
   const { status } = res;
   if (status === 200) {

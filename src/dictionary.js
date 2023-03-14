@@ -1,24 +1,11 @@
-import { ZipFile } from './zip.js';
-
 export class Dictionary {
-  constructor(options = {}) {
-    const {
-      locale = 'en-US',
-      size = 'medium',
-      file,
-    } = options;
-    if (file) {
-      this.path = file;
-    } else {
-      this.path = (new URL(`../dict/${locale}-${size}.zip`, import.meta.url)).pathname;
-    }
-    this.zip = null;
+  constructor(zip) {
+    this.zip = zip;
     this.meta = null;
     this.cache = {};
   }
 
   async open() {
-    this.zip = new ZipFile(this.path);
     await this.zip.open();
     this.meta = await this.zip.extractJSONFile('meta.json');
   }

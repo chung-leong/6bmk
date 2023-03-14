@@ -3,7 +3,10 @@ import { inflateRaw, deflateRaw } from 'pako';
 export class ZipFile {
   constructor(url) {
     this.url = url;
+    this.etag = undefined;
+    this.lastModified = undefined;
     this.centralDirectory = null;
+    this.centralDirectoryOffset;
   }
 
   async open() {    
@@ -13,7 +16,7 @@ export class ZipFile {
   async close() {
   }
 
-  async extractFile(name) {
+  async retrieveFile(name) {
     if (!this.centralDirectory) {
       throw new Error('File has not been opened yet');
     }
@@ -22,16 +25,28 @@ export class ZipFile {
       throw new Error(`Cannot find file in archive: ${name}`);
     }
     const { localHeaderOffset, compressedSize, compression } = record;
-    const header = Buffer.alloc(30);
-    await this.fetch(header, 0, 30, localHeaderOffset);
+    // look for the following file
+    let next;
+    for (const r of this.centralDirectory) {
+      if (r.localHeaderOffset > localHeaderOffset) {
+        if (!next || r.localHeaderOffset < next.localHeaderOffset) {
+          next = r;
+        }
+      }
+    }
+    // fetch both the header and data (and possible the data descriptor)
+    const endOffset = (next) ? next.localHeaderOffset : this.centralDirectoryOffset;
+    const combinedSize = endOffset - localHeaderOffset;
+    const combined = await this.fetch(combinedSize, localHeaderOffset);
+    const header = combined.subarray(0, 30);
     const signature = readUInt32LE(header);
     if (signature !== 0x04034b50) {
       throw new Error('Invalid file header');
     }
     const nameLength = readUInt16LE(header, 26);
     const extraLength = readUInt16LE(header, 28);
-    const dataOffset = localHeaderOffset + 30 + nameLength + extraLength;
-    const data = await this.fetch(compressedSize, dataOffset);
+    const dataOffset = 30 + nameLength + extraLength;
+    const data = combined.subarray(dataOffset, dataOffset + compressedSize);
     if (data.length !== compressedSize) {
       throw new Error('Cannot read the correct number of bytes');
     }
@@ -39,9 +54,30 @@ export class ZipFile {
     return uncompressedData;
   }
 
+  async extractFile(name) {
+    for (let attempt = 1;; attempt++) {
+      try {
+        const data = await this.retrieveFile(name);
+        return data;
+      } catch (err) {
+        if (err instanceof HTTPError && err.status === 412) {
+          this.etag = undefined;
+          this.lastModified = undefined;
+          this.centralDirectory = null;
+          if (attempt < 3) {
+            this.centralDirectory = await this.loadCentralDirectory();
+            continue;
+          }
+        }
+        throw err;
+      }  
+    }
+  }
+
   async extractTextFile(name, encoding = 'utf8') {
     const buffer = await this.extractFile(name);
-    return buffer.toString(encoding);
+    const decoder = new TextDecoder(encoding);
+    return decoder.decode(buffer);
   }
 
   async extractJSONFile(name) {
@@ -51,13 +87,13 @@ export class ZipFile {
 
   async findCentralDirectory() {
     const headerSize = 22;
-    const maxCommentLength = 65535;
+    const maxCommentLength = 16;
     const offsetLimit = -headerSize - maxCommentLength;
     let offset = -headerSize;
     let found = false;
     let header;
     while (!found && offset >= offsetLimit) {
-      header = this.fetch(headerSize, offset);
+      header = await this.fetch(headerSize, offset);
       const signature = readUInt32LE(header);
       if (signature === 0x06054b50) {
         found = true;
@@ -73,7 +109,7 @@ export class ZipFile {
       }
     }
     if (found) {
-      const count = readInt16LE(header, 10);
+      const count = readUInt16LE(header, 10);
       const size = readUInt32LE(header, 12);
       const offset = readUInt32LE(header, 16);
       return { count, size, offset };
@@ -105,6 +141,7 @@ export class ZipFile {
       const localHeaderOffset = readUInt32LE(header, 42);
       records.push({
         name,
+        nameLength,
         compression,
         compressedSize,
         uncompressedSize,
@@ -112,7 +149,38 @@ export class ZipFile {
       });
       index += headerSize;
     }
+    this.centralDirectoryOffset = offset;
     return records;
+  }
+
+  async fetch(size, offset) {
+    const headers = { 'accept-encoding': 'identity' };
+    if (offset < 0) {
+      headers.range = `bytes=${offset}`;
+    } else {
+      headers.range = `bytes=${offset}-${offset + size - 1}`;
+    }
+    if (this.etag) {
+      headers['if-match'] = this.etag;
+    } else if (this.lastModified) {
+      headers['if-unmodified-since'] = this.lastModified;
+    }
+    const res = await fetch(this.url, { headers });
+    if (res.status !== 206) {
+      throw new HTTPError(res);
+    }
+    this.etag = res.headers.get('etag');
+    this.lastModified = res.headers.get('last-modified');
+    const buffer = await res.arrayBuffer();
+    let chunk = new Uint8Array(buffer);
+    if (chunk.length !== size) {
+      if (chunk.length > size) {
+        chunk = chunk.subarray(0, size);
+      } else {
+        throw new Error('Size mismatch');
+      }
+    }
+    return chunk;  
   }
 }
 
@@ -325,6 +393,7 @@ export function createZip(items) {
     const zipVersion = 20;
     const lastModified = getDOSDatetime(new Date);
     const centralDirectory = [];
+    const encoder = new TextEncoder();
     let currentOffset = 0;
     // local headers and data
     for await (const { name, data, comment, isFile = true, isText = false } of items) {
@@ -334,15 +403,15 @@ export function createZip(items) {
       const compressedData = (data) ? await compressData(data, compression) : null;
       // create local header
       const flags = 0x0800;
-      const nameLength = Buffer.byteLength(name);
-      const commentLength = (comment) ? Buffer.byteLength(comment) : 0;
-      const extraLength = 0;
+      const nameEncoded = encoder.encode(name);
+      const commentEncoded = encoder.encode(comment ?? '');
+      const extra = new Uint8Array(0);
       const compressedSize = (compressedData) ? compressedData.length : 0;
       const uncompressedSize = (data) ? data.length : 0;
       const internalAttributes = (isText) ? 0x0001 : 0x0000;
       const externalAttributes = (isFile) ? 0x0080 : 0x0010;
       const headerOffset = currentOffset;
-      const headerSize = 30 + nameLength + extraLength;
+      const headerSize = 30 + name.length + extra.length;
       const header = Buffer.alloc(headerSize);
       writeUInt32LE(header, 0x04034b50, 0);
       writeUInt16LE(header, zipVersion, 4);
@@ -352,9 +421,9 @@ export function createZip(items) {
       writeUInt32LE(header, crc32, 14);
       writeUInt32LE(header, compressedSize, 18);
       writeUInt32LE(header, uncompressedSize, 22);
-      writeUInt16LE(header, nameLength, 26);
-      writeUInt16LE(header, extraLength, 28);
-      header.write(name, 30);
+      writeUInt16LE(header, nameEncoded.length, 26);
+      writeUInt16LE(header, extra.length, 28);
+      header.set(nameEncoded, 30);
       // save info for central directory
       const record = {
         flags,
@@ -363,14 +432,12 @@ export function createZip(items) {
         crc32,
         compressedSize,
         uncompressedSize,
-        nameLength,
-        extraLength,
-        commentLength,
         internalAttributes,
         externalAttributes,
         headerOffset,
-        name,
-        comment,
+        nameEncoded,
+        commentEncoded,
+        extra,
       };
       centralDirectory.push(record);
       // output data
@@ -391,16 +458,14 @@ export function createZip(items) {
         crc32,
         compressedSize,
         uncompressedSize,
-        nameLength,
-        extraLength,
-        commentLength,
         internalAttributes,
         externalAttributes,
         headerOffset,
-        name,
-        comment,
+        nameEncoded,
+        commentEncoded,
+        extra,
       } = record;
-      const headerSize = 46 + nameLength + extraLength + commentLength;
+      const headerSize = 46 + nameEncoded.length + extra.length + commentEncoded.length;
       const header = new Uint8Array(headerSize);
       writeUInt32LE(header, 0x02014b50, 0);
       writeUInt16LE(header, zipVersion, 4);
@@ -411,16 +476,15 @@ export function createZip(items) {
       writeUInt32LE(header, crc32, 16);
       writeUInt32LE(header, compressedSize, 20);
       writeUInt32LE(header, uncompressedSize, 24);
-      writeUInt16LE(header, nameLength, 28);
-      writeUInt16LE(header, extraLength, 30);
-      writeUInt16LE(header, commentLength, 32);
+      writeUInt16LE(header, nameEncoded.length, 28);
+      writeUInt16LE(header, extra.length, 30);
+      writeUInt16LE(header, commentEncoded.length, 32);
       writeUInt16LE(header, internalAttributes, 36)
       writeUInt32LE(header, externalAttributes, 38);
       writeUInt32LE(header, headerOffset, 42);
-      header.write(name, 46);
-      if (comment) {
-        header.write(comment, 46 + nameLength + extraLength);
-      }
+      header.set(nameEncoded, 46);
+      header.set(extra, 46 + nameEncoded.length);
+      header.set(commentEncoded, 46 + nameEncoded.length + extra.length);
       currentOffset += header.length;
       yield header;
     }
@@ -428,13 +492,13 @@ export function createZip(items) {
     const centralDirectorySize = currentOffset - centralDirectoryOffset;
     const header = new Uint8Array(22);
     writeUInt32LE(header, 0x06054b50, 0);
-    header.writeInt16LE(0, 4);
-    header.writeInt16LE(0, 6);
-    header.writeInt16LE(centralDirectory.length, 8);
-    header.writeInt16LE(centralDirectory.length, 10);
+    writeUInt16LE(header, 0, 4);
+    writeUInt16LE(header, 0, 6);
+    writeUInt16LE(header, centralDirectory.length, 8);
+    writeUInt16LE(header, centralDirectory.length, 10);
     writeUInt32LE(header, centralDirectorySize, 12);
     writeUInt32LE(header, centralDirectoryOffset, 16);
-    header.writeInt16LE(0, 20);
+    writeUInt16LE(header, 0, 20);
     yield header;
   };
   return createStream(processStream());
@@ -543,7 +607,20 @@ function extractName(header, index, length, flags) {
 export async function decompressData(buffer, type) {
   buffer = normalize(buffer);
   if (type === 8) {
-    buffer = inflateRaw(buffer);
+    if (buffer.length === undefined) {
+      throw new TypeError('Invalid input');
+    }
+    try {
+      buffer = inflateRaw(buffer);
+      if (buffer === undefined) {
+        throw new Error('Decompression failure');
+      }
+    } catch (err) {
+      if (typeof(err) === 'string') {
+        err = new Error(err);
+      }
+      throw err;
+    }
   }
   return buffer;
 }
@@ -612,3 +689,12 @@ function getDOSDatetime(date) {
        |  date.getMinutes()          <<  5
        | (date.getSeconds() >> 1);
 }
+
+class HTTPError extends Error { 
+  constructor(res) {
+    super(`HTTP ${res.status} - ${res.statusText}`);
+    this.status = res.status;
+    this.statusText = res.statusText;
+  }
+}
+

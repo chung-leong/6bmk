@@ -1,15 +1,7 @@
-import { createHash } from 'crypto';
 import { Dictionary } from './dictionary.js';
 
-export async function generateHaiku(options) {
-  const [ haiku ] = await generateMultipleHaiku(1, options);
-  return haiku;
-}
-
-export async function generateMultipleHaiku(count, options) {
+export async function generateHaikuFromDictionary(count, dict) {
   // load dictionary, where words are categorized by syllable count
-  const dict = new Dictionary(options);
-  await dict.open();
   const list = [];
   for (let i = 0; i < count; i++) {
     const sentences = [];
@@ -20,7 +12,6 @@ export async function generateMultipleHaiku(count, options) {
     }
     list.push(sentences.join('\n'));
   }
-  await dict.close();
   return list;
 }
 
@@ -61,15 +52,12 @@ async function pickRandomWord(dict, maxSyllableCount) {
   /* c8 ignore next */
 }
 
-export function getHaikuHash(haiku, type = 'sha1') {
+export function normalizeHaiku(haiku) {
   if (typeof(haiku) !== 'string') {
     throw new Error('Haiku must be a string');
   }
   // replace sequence of non-alphanumeric characters (including whitespace) with a single space
-  const filtered = haiku.toLowerCase().replace(/\W+/g, ' ').trim();
-  const shasum = createHash(type);
-  shasum.update(filtered);
-  return shasum.digest('hex');
+  return haiku.toLowerCase().replace(/\W+/g, ' ').trim();
 }
 
 function capitalize(sentence) {

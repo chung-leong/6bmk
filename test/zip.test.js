@@ -8,10 +8,12 @@ Chai.use(ChaiAsPromised);
 import {
   decompressData,
   compressData,
+} from '../src/zip.js';
+import {
   modifyZip,
   createZip,
   ZipFile,
-} from '../src/zip.js';
+} from '../index.js';
 
 describe('Zip functions', function() {
   describe('#decompressData', function() {
