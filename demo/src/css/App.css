@@ -1,0 +1,13 @@
+.App {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+
+pre {
+  width: 30em;
+  font-family: 'Courier New', monospace;
+  font-size: 14pt;
+  text-align: left;
+}
