@@ -1,6 +1,6 @@
 {
   "name": "6bmk",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Random haiku generator",
   "main": "index.js",
   "type": "module",
@@ -17,6 +17,17 @@
   "keywords": [
     "haiku",
     "random"
+  ],
+  "exports": {
+    ".": "./index.js",
+    "./browser": "./browser.js"
+  },
+  "files": [
+    "src/*.js",
+    "dict/",
+    "pptx/",
+    "index.js",
+    "browser.js"
   ],
   "author": "Chung Leong",
   "license": "MIT",

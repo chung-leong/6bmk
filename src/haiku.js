@@ -1,18 +1,14 @@
 import { Dictionary } from './dictionary.js';
 
-export async function generateHaikuFromDictionary(count, dict) {
+export async function generateHaikuFromDictionary(dict) {
   // load dictionary, where words are categorized by syllable count
-  const list = [];
-  for (let i = 0; i < count; i++) {
-    const sentences = [];
-    for (let i = 0; i < 3; i++) {
-      // a haiku has 5-7-5 structure
-      const sentence = await createRandomSentence(dict, (i === 1) ? 7 : 5);
-      sentences.push(capitalize(sentence));
-    }
-    list.push(sentences.join('\n'));
+  const sentences = [];
+  for (let i = 0; i < 3; i++) {
+    // a haiku has 5-7-5 structure
+    const sentence = await createRandomSentence(dict, (i === 1) ? 7 : 5);
+    sentences.push(capitalize(sentence));
   }
-  return list;
+  return sentences.join('\n');
 }
 
 export async function createRandomSentence(dict, syllableCount) {

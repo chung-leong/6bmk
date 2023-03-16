@@ -11,28 +11,33 @@ import { ZipFile } from './src/zip-browser.js';
 import { Dictionary } from './src/dictionary.js';
 import { generateHaikuFromDictionary } from './src/haiku.js';
 
-let dictionaryURL = '/dict';
-
-export function setDictionaryFolder(url) {
-  dictionaryURL = url;
-}
-
-export async function generateHaiku(options = {}) {
-  const [ haiku ] = await generateMultipleHaiku(1, options);
-  return haiku;
-}
-
-export async function generateMultipleHaiku(count, options = {}) {
+export async function *generateHaiku(options = {}) {
   const {
     locale = 'en-US',
     size = 'medium',
     file,
   } = options;
-  const url = (file) ? file : new URL(`${locale}-${size}.zip`, dictionaryURL);
+  const url = (file) ? file : await getDictionaryPath(locale, size);
   const zip = new ZipFile(url);
   const dict = new Dictionary(zip);
   await dict.open();
-  const haiku = await generateHaikuFromDictionary(count, dict);
-  await dict.close();
-  return haiku;
+  try {
+    for (;;) {
+      yield generateHaikuFromDictionary(dict);
+    }
+  } finally {
+    await dict.close();
+  }
+}
+
+async function getDictionaryPath(locale, size) {
+  if (process.env.NODE_ENV !== 'production') {
+    // accommodate loading in Node.js for unit testing purpose
+    if (typeof global === 'object' && global.global === global) {
+      return `/dict/${locale}-${size}.zip`;
+    }
+  }
+  /* c8 ignore next 2 */
+  const m = await import(/* webpackMode: "eager" */ `./dict/${locale}-${size}.zip`);
+  return m.default;  
 }

@@ -5,9 +5,7 @@ import { readFileSync } from 'fs';
 import nodeFetch from 'node-fetch';
 
 import {
-  generateMultipleHaiku,
   generateHaiku,
-  setDictionaryFolder,
 } from '../browser.js';
 
 describe('Haiku generation (browser)', function() {
@@ -36,46 +34,47 @@ describe('Haiku generation (browser)', function() {
     }
   });
   before(function(done) {
-    server.listen(0, () => {
+    server.listen(0, done);
+    global.fetch = (path, options) => {
       const { port } = server.address();
-      const url = new URL(`http://localhost:${port}/dict/`);
-      setDictionaryFolder(url);
-      done();
-    });
-    global.fetch = nodeFetch;   
+      const base = `http://localhost:${port}/`;
+      const url = new URL(path, base);
+      return nodeFetch(url, options);
+    };
   })
   after(function(done) {
     server.close(done);
   })
-  describe('#generateMultipleHaiku', async function() {
+  describe('#generateHaiku', async function() {
     it('should generate multiple random haiku', async function() {
       const known = 'The west wind whispered,\nAnd touched the eyelids of spring:\nHer eyes, Primroses.';
       const control = isHaiku(known);
       expect(control).to.be.true;
-      const haikuList = await generateMultipleHaiku(10);
-      expect(haikuList).to.have.lengthOf(10);
-      for (const haiku of haikuList) {
+      let count = 0;
+      for await (const haiku of generateHaiku()) {
         const result = isHaiku(haiku);
         expect(result).to.be.true;
+        count++;
+        if (count === 10) {
+          break;
+        }
       }
     })
-  })
-  describe('#generateHaiku', async function() {
-    it('should generate a single haiku', async function() {
-      const haiku = await generateHaiku(10);
-      const result = isHaiku(haiku);
-      expect(result).to.be.true;
-    })
     it('should generate a haiku from a specified zip file', async function() {
-      const { port } = server.address();
-      const url = new URL(`http://localhost:${port}/test/files/dict.zip`);
-      const haiku = await generateHaiku({ file: url });
-      const result = isHaiku(haiku);
-      expect(result).to.be.true;
-      const words = [ 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December' ];
-      for (const word of haiku.split(/\s+/)) {
-        expect(words).to.contain(word);
-      };
+      const file = `/test/files/dict.zip`;
+      for await (const haiku of generateHaiku({ file })) {
+        const result = isHaiku(haiku);
+        expect(result).to.be.true;
+        const words = [ 
+          'January', 'February', 'March', 'April', 
+          'May', 'June', 'July', 'August', 
+          'September', 'October', 'November', 'December' 
+        ];
+        for (const word of haiku.split(/\s+/)) {
+          expect(words).to.contain(word);
+        };
+        break;
+      }
     })
   })
 })
