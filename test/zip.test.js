@@ -196,7 +196,7 @@ describe('Zip functions', function() {
         }
       }
       variables['body_instruction_text'] = instructions;
-      const path = resolve('../pptx/flyer-a4-portrait.pptx');
+      const path = resolve('../pptx/flyer-a4-portrait-simplex.pptx');
       const fileStream = createReadStream(path);
       const outStream = modifyZip(fileStream, (name) => {
         if (name === 'ppt/slides/slide1.xml') {

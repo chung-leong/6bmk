@@ -321,7 +321,7 @@ describe('Zip functions (browser)', function() {
         }
       }
       variables['body_instruction_text'] = instructions;
-      const fileStream = await createHTTPStream(server, 'flyer-a4-portrait.pptx');
+      const fileStream = await createHTTPStream(server, 'flyer-a4-portrait-simplex.pptx');
       const outStream = modifyZip(fileStream, (name) => {
         if (name === 'ppt/slides/slide1.xml') {
           return async (buffer) => {
