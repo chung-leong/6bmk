@@ -7,9 +7,11 @@ export {
   ZipFile,
 } from './src/zip.js';
 
-import { ZipFile } from './src/zip.js';
+import { createReadStream } from 'fs';
+import { ZipFile, modifyZip } from './src/zip.js';
 import { Dictionary } from './src/dictionary.js';
 import { generateHaikuFromDictionary } from './src/haiku.js';
+import { modifyFlyerXML } from './src/flyer.js';
 
 export async function *generateHaiku(options = {}) {
   const {
@@ -30,5 +32,17 @@ export async function *generateHaiku(options = {}) {
   }
 }
 
-
-
+export async function createFlyer(options = {}) {
+  const {
+    paper = 'letter',
+    orientation = 'portrait',
+    mode = 'simplex',
+    file,
+    haiku,
+    address = '',
+    instructions = '',
+  } = options;
+  const path = (file) ? file : new URL(`./pptx/flyer-${paper}-${orientation}-${mode}.pptx`, import.meta.url).pathname;
+  const stream = createReadStream(path);
+  return modifyZip(stream, name => modifyFlyerXML(name, haiku, address, instructions));
+}
