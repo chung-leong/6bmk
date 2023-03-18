@@ -44,5 +44,6 @@ export async function createFlyer(options = {}) {
   } = options;
   const path = (file) ? file : new URL(`./pptx/flyer-${paper}-${orientation}-${mode}.pptx`, import.meta.url).pathname;
   const stream = createReadStream(path);
+  stream.on('end', () => haiku?.return());
   return modifyZip(stream, name => modifyFlyerXML(name, haiku, address, instructions));
 }

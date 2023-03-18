@@ -2,16 +2,17 @@ export function modifyFlyerXML(name, generator, address, instructions) {
   const haiku = {};
   // return function that modify the XML file
   if (/^ppt\/slides\/slide\d+.xml$/.test(name)) {
-    if (typeof(haiku?.[Symbol.asyncIterator]) !== 'function') {
+    if (typeof(generator?.[Symbol.asyncIterator]) !== 'function') {
       throw new Error(`Missing haiku generator`);
     }  
     return async (buffer) => {
       const text = buffer.toString();
       const vars = extractVariables(text);
+      const variables = {};
       for (const varname of vars) {
         let m;
         if (m = /^tab_\d+_heading$/.exec(varname)) {
-          variable[varname] = address;
+          variables[varname] = address;
         } else if (m = /^tab_(\d+)_line_(\d+)$/.exec(varname)) {
           const tag = m[1], line = m[2];
           let lines = haiku[tag];
@@ -19,11 +20,11 @@ export function modifyFlyerXML(name, generator, address, instructions) {
             // generate the haiku
             const { done, value } = await generator.next();          
             if (!done) {
-              lines = haiku[tag] = value.lines.split('\n');
+              lines = haiku[tag] = value.split('\n');
             }
           }
           if (lines) {
-            variables[varname] = lines[line];
+            variables[varname] = lines[line - 1];
           }
         }
       }
