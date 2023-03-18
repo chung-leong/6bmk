@@ -20,13 +20,12 @@ class HaikuGenerator {
     return implode("\n", $sentences);
   }
 
-  public static function hash($haiku, $algo = 'sha1') {
+  public static function normalize($haiku) {
     if (gettype($haiku) !== 'string') {
       throw new Exception('Haiku must be a string');
     }
     // replace sequence of non-alphanumeric characters (including whitespace) with a single space
-    $filtered = trim(preg_replace('/\W+/', ' ', strtolower($haiku)));
-    return hash($algo, $filtered);
+    return trim(preg_replace('/\W+/', ' ', strtolower($haiku)));
   }
 
   protected function createRandomSentence($syllableCount) {

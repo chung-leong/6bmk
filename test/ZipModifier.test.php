@@ -230,7 +230,7 @@ class ZipModifierTest extends TestCase {
       }
     }
     $variables['body_instruction_text'] = $instructions;
-    $path = __DIR__ . '/../pptx/flyer-a4-portrait.pptx';
+    $path = __DIR__ . '/../pptx/flyer-a4-portrait-simplex.pptx';
     $fileStream = fopen($path, 'rb');
     stream_set_chunk_size($fileStream, 1024);
     stream_filter_append($fileStream, $filter, 0, function($name) use($variables) {
