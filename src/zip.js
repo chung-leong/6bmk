@@ -329,6 +329,10 @@ export function modifyZip(stream, cb) {
         }
       }
     }
+    const f = cb(null);
+    if (typeof(f) === 'function') {
+      await f();
+    }
   };
   return Readable.from(processStream());
 }

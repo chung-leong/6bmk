@@ -1,4 +1,3 @@
-import { createReadStream } from 'fs';
 import { modifyZip } from './zip.js';
 
 export async function createFlyer(options = {}) {
@@ -11,8 +10,9 @@ export async function createFlyer(options = {}) {
     address = '',
     instructions = '',
   } = options;
-  const path = (file) ? file : new URL(`../pptx/flyer-${paper}-${orientation}-${mode}.pptx`, import.meta.url).pathname;
-  const stream = createReadStream(path);
+  const url = (file) ? file : await getTemplatePath(paper, orientation, mode);
+  const res = await fetch(url);
+  const stream = res.body;
   return modifyZip(stream, (name) => {
     const haikuHash = {};
     // return function that modify the XML file
@@ -21,7 +21,8 @@ export async function createFlyer(options = {}) {
         throw new Error(`Missing haiku generator`);
       }  
       return async (buffer) => {
-        const text = buffer.toString();
+        const decoder = new TextDecoder();
+        const text = decoder.decode(buffer);
         const vars = extractVariables(text);
         const variables = {};
         for (const varname of vars) {
@@ -62,4 +63,16 @@ function extractVariables(text) {
     names.push(m[1]);
   }
   return names.sort();
+}
+
+async function getTemplatePath(paper, orientation, mode) {
+  if (process.env.NODE_ENV !== 'production') {
+    // ditto
+    if (typeof global === 'object' && global.global === global) {
+      return `/pptx/flyer-${paper}-${orientation}-${mode}.pptx`;
+    }
+  }
+  /* c8 ignore next 2 */
+  const m = await import(/* webpackMode: "eager" */ `./pptx/flyer-${paper}-${orientation}-${mode}.pptx`);
+  return m.default;  
 }

@@ -1,4 +1,4 @@
-import { ZipFile } from './zip.js';
+import { ZipFile } from './zip-browser.js';
 
 export class Dictionary {
   constructor(options = {}) {
@@ -14,7 +14,7 @@ export class Dictionary {
       size = 'medium',
       file,
     } = this.options;
-    const path = (file) ? file : new URL(`../dict/${locale}-${size}.zip`, import.meta.url).pathname;
+    const path = (file) ? file : await getDictionaryPath(locale, size);
     this.zip = new ZipFile(path);
     await this.zip.open();
     this.meta = await this.zip.extractJSONFile('meta.json');
@@ -40,4 +40,16 @@ export class Dictionary {
   getWordCount(syllableCount) {
     return this.meta.words[`${syllableCount}-syllable`];
   }
+}
+
+async function getDictionaryPath(locale, size) {
+  if (process.env.NODE_ENV !== 'production') {
+    // accommodate loading in Node.js for unit testing purpose
+    if (typeof global === 'object' && global.global === global) {
+      return `/dict/${locale}-${size}.zip`;
+    }
+  }
+  /* c8 ignore next 2 */
+  const m = await import(/* webpackMode: "eager" */ `../dict/${locale}-${size}.zip`);
+  return m.default;  
 }
