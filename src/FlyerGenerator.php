@@ -62,7 +62,7 @@ class FlyerGenerator {
                 $value = $this->haiku->current();
                 $this->haikuUsed = true;
                 if ($value) {
-                  $lines = explode('\n', $value);
+                  $lines = explode("\n", $value);
                 }
               }
               if ($lines) {

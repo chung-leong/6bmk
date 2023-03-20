@@ -27,7 +27,7 @@ class FlyerGeneratorTest extends TestCase {
         try {
           for (;;) {
             $count++;  
-            yield '[LINE 1]\n[LINE 2]\n[LINE 3]';
+            yield "[LINE 1]\n[LINE 2]\n[LINE 3]";
           }
         } finally {
           $finalized = true;
@@ -59,7 +59,7 @@ class FlyerGeneratorTest extends TestCase {
         try {
           for (;;) {
             $count++;  
-            yield '[LINE 1]\n[LINE 2]\n[LINE 3]';
+            yield "[LINE 1]\n[LINE 2]\n[LINE 3]";
           }
         } finally {
           $finalized = true;
@@ -91,7 +91,7 @@ class FlyerGeneratorTest extends TestCase {
         try {
           for (;;) {
             $count++;  
-            yield '[LINE 1]\n[LINE 2]\n[LINE 3]';
+            yield "[LINE 1]\n[LINE 2]\n[LINE 3]";
           }
         } finally {
           $finalized = true;
@@ -123,7 +123,7 @@ class FlyerGeneratorTest extends TestCase {
         try {
           for (;;) {
             $count++;  
-            yield '[LINE 1]\n[LINE 2]\n[LINE 3]';
+            yield "[LINE 1]\n[LINE 2]\n[LINE 3]";
           }
         } finally {
           $finalized = true;
@@ -155,7 +155,7 @@ class FlyerGeneratorTest extends TestCase {
         try {
           for (;;) {
             $count++;  
-            yield '[LINE 1]\n[LINE 2]\n[LINE 3]';
+            yield "[LINE 1]\n[LINE 2]\n[LINE 3]";
           }
         } finally {
           $finalized = true;
@@ -187,7 +187,7 @@ class FlyerGeneratorTest extends TestCase {
         try {
           for (;;) {
             $count++;  
-            yield '[LINE 1]\n[LINE 2]\n[LINE 3]';
+            yield "[LINE 1]\n[LINE 2]\n[LINE 3]";
           }
         } finally {
           $finalized = true;
@@ -219,7 +219,7 @@ class FlyerGeneratorTest extends TestCase {
         try {
           for (;;) {
             $count++;  
-            yield '[LINE 1]\n[LINE 2]\n[LINE 3]';
+            yield "[LINE 1]\n[LINE 2]\n[LINE 3]";
           }
         } finally {
           $finalized = true;
@@ -251,7 +251,7 @@ class FlyerGeneratorTest extends TestCase {
         try {
           for (;;) {
             $count++;  
-            yield '[LINE 1]\n[LINE 2]\n[LINE 3]';
+            yield "[LINE 1]\n[LINE 2]\n[LINE 3]";
           }
         } finally {
           $finalized = true;
@@ -279,7 +279,7 @@ class FlyerGeneratorTest extends TestCase {
         try {
           for (;;) {
             $count++;  
-            yield '[LINE 1]\n[LINE 2]\n[LINE 3]';
+            yield "[LINE 1]\n[LINE 2]\n[LINE 3]";
           }
         } finally {
           $finalized = true;
