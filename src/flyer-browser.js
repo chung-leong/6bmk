@@ -1,4 +1,4 @@
-import { modifyZip } from './zip.js';
+import { modifyZip } from './zip-browser.js';
 
 export async function createFlyer(options = {}) {
   const {
@@ -12,7 +12,7 @@ export async function createFlyer(options = {}) {
   } = options;
   if (typeof(haiku?.[Symbol.asyncIterator]) !== 'function') {
     throw new Error(`Missing haiku generator`);
-  }  
+  }
   const url = (file) ? file : await getTemplatePath(paper, orientation, mode);
   const res = await fetch(url);
   const stream = res.body;

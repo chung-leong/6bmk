@@ -209,7 +209,7 @@ describe('Flyer creation', function() {
       const mode = 'duplex';
       const outStream = await createFlyer({ haiku, address, instructions, paper, orientation, mode });
       // need to check file manually
-      const pptxPath = resolve(`./files/output/flyer-test-${paper}-${orientation}-${mode}.pptx`);
+      const pptxPath = resolve(`./files/output/flyer-browser-${paper}-${orientation}-${mode}.pptx`);
       const pptxFileStream = createWriteStream(pptxPath);
       await pipe(outStream, pptxFileStream);
       expect(count).to.equal(12);
@@ -232,7 +232,7 @@ describe('Flyer creation', function() {
       const file = resolve('../pptx/flyer-letter-landscape-duplex.pptx');
       const outStream = await createFlyer({ haiku, address, instructions, file });
       // need to check file manually
-      const pptxPath = resolve('./files/output/flyer-test-custom.pptx');
+      const pptxPath = resolve('./files/output/flyer-browser-custom.pptx');
       const pptxFileStream = createWriteStream(pptxPath);
       await pipe(outStream, pptxFileStream);
       expect(count).to.equal(12);

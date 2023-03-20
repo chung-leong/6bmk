@@ -78,6 +78,39 @@ describe('Flyer creation (browser)', function() {
       expect(count).to.equal(10);
       expect(finalized).to.be.true;
     })
+    it('should use custom template', async function() {
+      let count = 0, finalized = false;
+      const haiku = (async function *(){
+        try {
+          for (;;) {
+            count++;  
+            yield '[line 1]\n[line 2]\n[line 3]';
+          }
+        } finally {
+          finalized = true;
+        }
+      })();
+      const address = 'https://6beer.mk/';
+      const instructions = 'Go to website and enter haiku';
+      const file = '/pptx/flyer-letter-landscape-duplex.pptx';
+      const outStream = await createFlyer({ haiku, address, instructions, file });
+      // need to check file manually
+      const pptxPath = resolve('./files/output/flyer-browser-custom.pptx');
+      const pptxFileStream = createWriteStream(pptxPath);
+      await pipe(outStream, pptxFileStream);
+      expect(count).to.equal(12);
+      expect(finalized).to.be.true;
+    })
+    it('should leave placeholders as is where generator does not yield anything', async function() {
+      const haiku = (async function *(){})();
+      const address = 'https://6beer.mk/';
+      const instructions = 'Go to website and enter haiku';
+      const outStream = await createFlyer({ haiku, address, instructions });
+      // need to check file manually
+      const pptxPath = resolve('./files/output/flyer-browser-blank.pptx');
+      const pptxFileStream = createWriteStream(pptxPath);
+      await pipe(outStream, pptxFileStream);
+    })
   })
 })
 
