@@ -7,7 +7,8 @@ class HaikuGenerator {
   protected $options;
 
   function __construct($options = []) {
-    $this->options = $options;
+    $this->dict = new Dictionary($options);
+    $this->dict->open();
   }
 
   public function generate() {
@@ -47,10 +48,6 @@ class HaikuGenerator {
   }
 
   protected function pickRandomWord($maxSyllableCount) {
-    if (!$this->dict) {
-      $this->dict = new Dictionary($this->options);
-      $this->dict->open();
-    }
     // see how many words in total we're considering
     $total = 0;
     for ($syllables = 1; $syllables <= $maxSyllableCount; $syllables++) {

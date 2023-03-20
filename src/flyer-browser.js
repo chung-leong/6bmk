@@ -10,6 +10,9 @@ export async function createFlyer(options = {}) {
     address = '',
     instructions = '',
   } = options;
+  if (typeof(haiku?.[Symbol.asyncIterator]) !== 'function') {
+    throw new Error(`Missing haiku generator`);
+  }  
   const url = (file) ? file : await getTemplatePath(paper, orientation, mode);
   const res = await fetch(url);
   const stream = res.body;
@@ -17,9 +20,6 @@ export async function createFlyer(options = {}) {
     const haikuHash = {};
     // return function that modify the XML file
     if (/^ppt\/slides\/slide\d+.xml$/.test(name)) {
-      if (typeof(haiku?.[Symbol.asyncIterator]) !== 'function') {
-        throw new Error(`Missing haiku generator`);
-      }  
       return async (buffer) => {
         const decoder = new TextDecoder();
         const text = decoder.decode(buffer);

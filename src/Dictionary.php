@@ -7,7 +7,11 @@ class Dictionary {
   protected $cache = [];
 
   function __construct($options = []) {
-    extract($options + [ 'locale' => 'en-US', 'size' => 'medium', 'file' => '' ]);
+    extract($options + [ 
+      'locale' => 'en-US', 
+      'size' => 'medium', 
+      'file' => ''
+    ]);
     if ($file) {
       $this->path = $file;
     } else {

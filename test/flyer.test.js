@@ -1,6 +1,9 @@
-import { expect } from 'chai';
+import { expect, use } from 'chai';
+import ChaiAsPromised from 'chai-as-promised';
 import { pipeline } from 'stream';
 import { createWriteStream } from 'fs';
+
+use(ChaiAsPromised);
 
 import {
   createFlyer,
@@ -8,6 +11,10 @@ import {
 
 describe('Flyer creation', function() {
   describe('#createFlyer', function() {
+    it('should throw if haiku is not a generator', async function() {
+      const promise = createFlyer();
+      expect(promise).to.eventually.be.rejected;
+    })
     it('should create a single-sided letter portrait flyer', async function() {
       let count = 0, finalized = false;
       const haiku = (async function *(){

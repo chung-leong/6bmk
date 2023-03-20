@@ -1,4 +1,4 @@
-import Chai, { expect } from 'chai';
+import { expect } from 'chai';
 
 import {
   Dictionary,

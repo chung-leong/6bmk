@@ -1,4 +1,4 @@
-import Chai, { expect } from 'chai';
+import { expect, use } from 'chai';
 import ChaiAsPromised from 'chai-as-promised';
 import { Readable, pipeline } from 'stream';
 import { createServer } from 'http';
@@ -6,7 +6,7 @@ import { readFileSync, statSync, createWriteStream } from 'fs';
 import { createHash } from 'crypto';
 import nodeFetch from 'node-fetch';
 
-Chai.use(ChaiAsPromised);
+use(ChaiAsPromised);
 
 import {  
   decompressData,

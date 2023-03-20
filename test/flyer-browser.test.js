@@ -1,9 +1,12 @@
-import { expect } from 'chai';
+import { expect, use } from 'chai';
+import ChaiAsPromised from 'chai-as-promised';
 import { createServer } from 'http';
 import { readFileSync } from 'fs';
 import nodeFetch from 'node-fetch';
 import { pipeline } from 'stream';
 import { createWriteStream } from 'fs';
+
+use(ChaiAsPromised);
 
 import {
   createFlyer,
@@ -39,6 +42,10 @@ describe('Flyer creation (browser)', function() {
     server.close(done);
   })
   describe('#createFlyer', function() {
+    it('should throw if haiku is not a generator', async function() {
+      const promise = createFlyer();
+      expect(promise).to.eventually.be.rejected;
+    })
     it('should create a flyer', async function() {
       let count = 0, finalized = false;
       const haiku = (async function *(){

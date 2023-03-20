@@ -11,15 +11,15 @@ export async function createFlyer(options = {}) {
     address = '',
     instructions = '',
   } = options;
+  if (typeof(haiku?.[Symbol.asyncIterator]) !== 'function') {
+    throw new Error(`Missing haiku generator`);
+  }  
   const path = (file) ? file : new URL(`../pptx/flyer-${paper}-${orientation}-${mode}.pptx`, import.meta.url).pathname;
   const stream = createReadStream(path);
   return modifyZip(stream, (name) => {
     const haikuHash = {};
     // return function that modify the XML file
     if (/^ppt\/slides\/slide\d+.xml$/.test(name)) {
-      if (typeof(haiku?.[Symbol.asyncIterator]) !== 'function') {
-        throw new Error(`Missing haiku generator`);
-      }  
       return async (buffer) => {
         const text = buffer.toString();
         const vars = extractVariables(text);
@@ -29,13 +29,13 @@ export async function createFlyer(options = {}) {
           if (m = /^tab_\d+_heading$/.exec(varname)) {
             variables[varname] = address;
           } else if (m = /^tab_(\d+)_line_(\d+)$/.exec(varname)) {
-            const tag = m[1], line = m[2];
-            let lines = haikuHash[tag];
+            const tab = m[1], line = m[2];
+            let lines = haikuHash[tab];
             if (!lines) {
               // generate the haiku
               const { done, value } = await haiku.next();          
               if (!done) {
-                lines = haikuHash[tag] = value.split('\n');
+                lines = haikuHash[tab] = value.split('\n');
               }
             }
             if (lines) {
