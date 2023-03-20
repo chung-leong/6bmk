@@ -3,22 +3,29 @@
 use \Exception;
 
 class HaikuGenerator {
-  protected $dict = null;
   protected $options;
+  protected $dict = null;
 
   function __construct($options = []) {
-    $this->dict = new Dictionary($options);
-    $this->dict->open();
+    $this->options = $options;
+    $this->dict = new Dictionary($this->options);
   }
 
   public function generate() {
-    $sentences = [];
-    for ($i = 0; $i < 3; $i++) {
-      // a haiku has 5-7-5 structure
-      $sentence = $this->createRandomSentence(($i === 1) ? 7 : 5);
-      $sentences[] = ucfirst($sentence);
+    $this->dict->open();
+    try {
+      for (;;) {
+        $sentences = [];
+        for ($i = 0; $i < 3; $i++) {
+          // a haiku has 5-7-5 structure
+          $sentence = $this->createRandomSentence(($i === 1) ? 7 : 5);
+          $sentences[] = ucfirst($sentence);
+        }
+        yield implode("\n", $sentences);    
+      }
+    } finally {
+      $this->dict->close();
     }
-    return implode("\n", $sentences);
   }
 
   public static function normalize($haiku) {

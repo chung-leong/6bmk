@@ -17,7 +17,11 @@ class ZipFile {
   }
 
   public function close() {
-    fclose($this->file);
+    if ($this->file) {
+      fclose($this->file);
+      $this->file = null;
+      $this->centralDirectory = null;
+    }
   }
 
   public function extractFile($name) {

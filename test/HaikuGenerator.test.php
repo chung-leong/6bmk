@@ -7,6 +7,8 @@ class HaikuGeneratorTest extends TestCase {
   function testCreateRandomSentence() {
     // should generate a random sentence of the correct length
     $gen = new HaikuGenerator;
+    $dict = access_protected($gen, 'dict');
+    $dict->open();
     for ($i = 0; $i < 10; $i++) {
       $sentence = invoke_protected($gen, 'createRandomSentence', 7);
       $count = countSyllables($sentence);
@@ -21,10 +23,14 @@ class HaikuGeneratorTest extends TestCase {
     $this->assertTrue($control);
 
     $gen = new HaikuGenerator;
-    for ($i = 0; $i < 10; $i++) {
-      $haiku = $gen->generate();
+    $count = 0;
+    foreach($gen->generate() as $haiku) {
       $result = isHaiku($haiku);
       $this->assertTrue($result);
+      $count++;
+      if ($count >= 10) {
+        break;
+      }
     }
   }
 
