@@ -4,27 +4,14 @@ use PHPUnit\Framework\TestCase;
 use cleong\sixbeermk\HaikuGenerator;
 
 class HaikuGeneratorTest extends TestCase {
-  function testCreateRandomSentence() {
-    // should generate a random sentence of the correct length
-    $gen = new HaikuGenerator;
-    $dict = access_protected($gen, 'dict');
-    $dict->open();
-    for ($i = 0; $i < 10; $i++) {
-      $sentence = invoke_protected($gen, 'createRandomSentence', 7);
-      $count = countSyllables($sentence);
-      $this->assertSame(7, $count);
-    }
-  }
-
   function testGenerate() {
     // should generate random haiku
     $known = "The west wind whispered,\nAnd touched the eyelids of spring:\nHer eyes, Primroses.";
     $control = isHaiku($known);
     $this->assertTrue($control);
 
-    $gen = new HaikuGenerator;
     $count = 0;
-    foreach($gen->generate() as $haiku) {
+    foreach(HaikuGenerator::generate() as $haiku) {
       $result = isHaiku($haiku);
       $this->assertTrue($result);
       $count++;

@@ -3,15 +3,26 @@
 use \Exception;
 
 class HaikuGenerator {
-  protected $options;
   protected $dict = null;
 
-  function __construct($options = []) {
-    $this->options = $options;
-    $this->dict = new Dictionary($this->options);
+  public static function generate($options = []) {
+    $instance = new static($options);
+    return $instance->__generate();
   }
 
-  public function generate() {
+  public static function normalize($haiku) {
+    if (gettype($haiku) !== 'string') {
+      throw new Exception('Haiku must be a string');
+    }
+    // replace sequence of non-alphanumeric characters (including whitespace) with a single space
+    return trim(preg_replace('/\W+/', ' ', strtolower($haiku)));
+  }
+
+  protected function __construct($options) {
+    $this->dict = new Dictionary($options);
+  }
+
+  protected function __generate() {
     $this->dict->open();
     try {
       for (;;) {
@@ -26,14 +37,6 @@ class HaikuGenerator {
     } finally {
       $this->dict->close();
     }
-  }
-
-  public static function normalize($haiku) {
-    if (gettype($haiku) !== 'string') {
-      throw new Exception('Haiku must be a string');
-    }
-    // replace sequence of non-alphanumeric characters (including whitespace) with a single space
-    return trim(preg_replace('/\W+/', ' ', strtolower($haiku)));
   }
 
   protected function createRandomSentence($syllableCount) {
