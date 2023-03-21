@@ -27,8 +27,11 @@ npm install 6bmk
 
 PHP
 ```sh
-composer install cleong/sixbeermk
+composer require cleong/sixbeermk
 ```
+
+PHP does not allow namespaces starting with digits. This is why a fuller name of the 
+project is used.
 
 ## Usage - Node.js
 
@@ -38,8 +41,7 @@ composer install cleong/sixbeermk
 import { generateHaiku, normalizeHaiku } from '6bmk';
 import { createHash } from 'crypto';
 
-async function *getAccessHaiku(db, flyerId) {
-  const locale = 'en-US';
+async function *getAccessHaiku(db, flyerId, locale) {
   // load existing haiku first
   const rows = await db.query(`SELECT text FROM haiku WHERE flyer_id = ?`, [ flyerId ]);
   for (const { text } of rows) {
@@ -58,11 +60,32 @@ async function *getAccessHaiku(db, flyerId) {
 }
 ```
 
+[`generateHaiku`](./doc/generateHaiku.md) returns an async generator. Generally you would 
+save its output to a database so you can verify later that a user has entered a correct 
+haiku. [`normalizeHaiku`](./doc/normalizeHaiku.md) removes punctuations, normalizes
+whitespaces, and converts characters to lowercase. These steps ensure we would get the 
+same hash despite minor differences.
+
 ### Generating flyer
 
 ```js
+import { createFlyer } from '6bmk';
 
+async function createDownload(db, flyerId) {
+  const [ row ] = await db.query(`SELECT address, instructions, options FROM flyer WHERE id = ?`, [ flyerId ]);
+  const { address, instructions, options } = row;
+  const { paper, orientation, mode, locale } = JSON.parse(options);
+  const haiku = getAccessHaiku(db, flyerId, locale);
+  return createFlyer({ paper, orientation, mode, address, instructions, haiku });
+}
 ```
+
+[`createFlyer`](./doc/createFlyer.md) returns a Node 
+[Readable Stream](https://nodejs.org/api/stream.html#readable-streams). If you're using 
+[Fastify](https://www.fastify.io/), you can simply return the stream in your handler. 
+If you're using [Express](https://expressjs.com/), you would need to pipe the stream 
+into `res`. In both cases you should set the appriopriate HTTP headers so the response 
+is handled as a download by the browser.
 
 ## Usage - PHP
 
@@ -71,13 +94,59 @@ async function *getAccessHaiku(db, flyerId) {
 ```php
 <?php
 
-?>
+use cleong\sixbeermk\HaikuGenerator;
+
+function get_access_haiku($db, $flyer_id, $locale) {
+  // load existing haiku first
+  $result = $db->query("SELECT text FROM haiku WHERE flyer_id = $flyer_id");
+  $rows = $result->fetch_column();
+  foreach ($rows as $text) {
+    yield $text;
+  }
+  // generate new ones if there aren't enough
+  $options = [ 'locale' => $locale ];
+  foreach(HaikuGenerator::generate($options) as $text) {
+    // generate hash
+    $hash = sha1(HaikuGenerator::normalize($text));
+    // save to database
+    $stmt = $db->prepare("INSERT INTO haiku (flyer_id, text, hash) VALUES(?, ?, ?)");
+    $stmt->bind_param("iss", $flyer_id, $text, $hash);
+    $stmt->execute();
+    yield $text;
+  }
+}
 ```
+
+[`HaikuGenerator::generate`](./doc/HaikuGenerator.generate.md) returns a generator. 
+Generally you would save its output to a database so you can verify later that a user 
+has entered a correct haiku. 
+[`HaikuGenerator::normalize`](./doc/HaikuGenerator.normalize.md) removes punctuations, 
+normalizes whitespaces, and converts characters to lowercase. These steps ensure we 
+would get the same hash despite minor differences.
 
 ### Generating flyer
 
 ```php
 <?php
 
-?>
+function create_download($db, $flyer_id) {
+  $result = $db->query("SELECT address, instructions, options FROM flyer WHERE id = $flyer_id");
+  list(
+    'address' => $address,
+    'instructions' => $instructions,
+    'options' => $options,
+  ) = $result->fetch_assoc();
+  $options = json_decode($options, true);
+  $haiku = get_access_haiku($db, $flyer_id, $options['locale']);
+  return FlyerGenerator::generate($options + [
+    'address' => $address,
+    'instructions' => $instructions,
+    'haiku' => $haiku,
+  ]);
+}
 ```
+
+[`FlyerGenerator::generate`](./doc/FlyerGenerator.generate.md) returns a stream.
+Use [`fpassthru`](https://www.php.net/manual/en/function.fpassthru.php) to send 
+the file content to the browser. You should set the appriopriate HTTP headers 
+beforehand so that the response is handled as a download.
