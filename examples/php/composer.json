@@ -1,0 +1,6 @@
+{
+    "require": {
+        "cleong/sixbeermk": "dev-main"
+    },
+    "minimum-stability": "dev"
+}
