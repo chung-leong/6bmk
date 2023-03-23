@@ -11,13 +11,13 @@
             "version": "dev-main",
             "source": {
                 "type": "git",
-                "url": "https://github.com/chung-leong/6bmk.git",
-                "reference": "4dfd5ecc472071074bf7917666abcf0c7f52e7d0"
+                "url": "https://github.com/6bmk/sixbeermk.git",
+                "reference": "ccfb621d9f30e29a1bb9a0bb533bdab54804525c"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/chung-leong/6bmk/zipball/4dfd5ecc472071074bf7917666abcf0c7f52e7d0",
-                "reference": "4dfd5ecc472071074bf7917666abcf0c7f52e7d0",
+                "url": "https://api.github.com/repos/6bmk/sixbeermk/zipball/ccfb621d9f30e29a1bb9a0bb533bdab54804525c",
+                "reference": "ccfb621d9f30e29a1bb9a0bb533bdab54804525c",
                 "shasum": ""
             },
             "require-dev": {
@@ -48,9 +48,9 @@
             ],
             "support": {
                 "issues": "https://github.com/chung-leong/6bmk/issues",
-                "source": "https://github.com/chung-leong/6bmk/tree/main"
+                "source": "https://github.com/6bmk/sixbeermk/tree/main"
             },
-            "time": "2023-03-20T22:37:21+00:00"
+            "time": "2023-03-21T17:23:57+00:00"
         }
     ],
     "packages-dev": [],

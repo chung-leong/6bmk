@@ -129,6 +129,8 @@ would get the same hash despite minor differences.
 ```php
 <?php
 
+use cleong\sixbeermk\FlyerGenerator;
+
 function create_download($db, $flyer_id) {
   $result = $db->query("SELECT address, instructions, options FROM flyer WHERE id = $flyer_id");
   list(
