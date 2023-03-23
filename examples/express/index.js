@@ -1,5 +1,4 @@
-import Fastify from 'fastify';
-import FormBody from '@fastify/formbody';
+import Express from 'express';
 import Sqlite3, { SqliteError } from 'better-sqlite3';
 import { generateHaiku, normalizeHaiku } from '6bmk';
 import { createFlyer } from '6bmk';
@@ -72,25 +71,24 @@ async function createDownload(db, flyerId) {
 
 (async () => {
   const db = await openDatabase();
-  const fastify = Fastify({ ignoreTrailingSlash: true, trustProxy: true });
-  fastify.register(FormBody);
-  fastify.get('/flyer/', async (req, reply) => {
+  const app = Express();
+  app.get('/flyer/', async (req, res) => {
     const stream = await createDownload(db, req.query.id);
-    reply.headers({ 
+    res.set({ 
       'Content-Type': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
       'Content-Disposition': `attachment; filename="${stream.name}.pptx"`,
     });
-    return stream;
+    stream.pipe(res);
   });
-  fastify.get('/', async (req, reply) => {
+  app.get('/', async (req, res) => {
     const fetch = db.prepare(`SELECT id, name, options FROM flyer ORDER BY id`);
     const rows = fetch.all();
     const papers = [ 'letter', 'a4' ];
     const orientations = [ 'portrait', 'landscape'];
     const modes = [ 'simplex', 'duplex' ];
     const locales = [ 'en-US', 'en-GB', 'en-CA', 'en-AU' ];
-    reply.type('html');
-    return `
+    res.type('html');
+    res.send(`
       <html>
         <head>
           <style>
@@ -159,14 +157,14 @@ async function createDownload(db, flyerId) {
           </form>
         </body>
       </html>
-    `;
+    `);
   });
-  fastify.post('/', async (req, reply) => {
+  app.post('/', async (req, res) => {
     const { address, name, instructions, paper, orientation, mode, locale } = req.body;
     const options = JSON.stringify({ paper, orientation, mode, locale });
     const insert = db.prepare(`INSERT INTO flyer (address, name, instructions, options) VALUES(?, ?, ?, ?)`);
     insert.run(address, name, instructions, options);
-    reply.redirect('/');
+    res.redirect('/');
   });
-  await fastify.listen({ host: 'localhost', port: 8080 });
+  await new Promise(r => app.listen(8080, r));
 })();
