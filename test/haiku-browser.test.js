@@ -6,6 +6,7 @@ import nodeFetch from 'node-fetch';
 
 import {
   generateHaiku,
+  normalizeHaiku,
 } from '../browser.js';
 
 describe('Haiku generation (browser)', function() {
@@ -75,6 +76,30 @@ describe('Haiku generation (browser)', function() {
         };
         break;
       }
+    })
+  })
+  describe('#normalizeHaiku', function() {
+    const base = 'the west wind whispered\nand touched the eyelids of spring\nher eyes Primroses';
+    it('should generate the same text regardless of cases', function() {
+      const test = 'The west wind whispered\nAnd touched the eyelids of spring\nHer eyes Primroses'
+      const text1 = normalizeHaiku(base);
+      const text2 = normalizeHaiku(test);
+      expect(text1).to.equal(text2);
+    })
+    it('should generate the same text regardless of punctuations', function() {
+      const test = 'The west wind whispered,\nAnd touched the eyelids of spring:\nHer eyes, Primroses'
+      const text1 = normalizeHaiku(base);
+      const text2 = normalizeHaiku(test);
+      expect(text1).to.equal(text2);
+    })
+    it('should generate the same text when there are extra linefeeds', function() {
+      const test = 'The west wind whispered,\nAnd touched the eyelids of spring:\nHer eyes, Primroses\n\n\n'
+      const text1 = normalizeHaiku(base);
+      const text2 = normalizeHaiku(test);
+      expect(text1).to.equal(text2);
+    })
+    it('should throw if argument is not a string', function() {
+      expect(() => normalizeHaiku()).to.throw();
     })
   })
 })

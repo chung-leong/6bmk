@@ -1,12 +1,12 @@
-import Chai, { expect } from 'chai';
+import { expect, use } from 'chai';
 import ChaiAsPromised from 'chai-as-promised';
 import { Readable, pipeline } from 'stream';
 import { createServer } from 'http';
 import { readFileSync, statSync, createWriteStream } from 'fs';
+import { createHash } from 'crypto';
 import nodeFetch from 'node-fetch';
-import { calculateCRC32 } from '../src/utils.js';
 
-Chai.use(ChaiAsPromised);
+use(ChaiAsPromised);
 
 import {  
   decompressData,
@@ -34,7 +34,9 @@ describe('Zip functions (browser)', function() {
       const data = readFileSync(path);
       const { mtime } = statSync(path);
       const range = req.headers.range;
-      const etag = calculateCRC32(data) + (response.etagSuffix ?? '');
+      const hash = createHash('sha1');
+      hash.update(data);
+      const etag = hash.digest('hex') + (response.etagSuffix ?? '');
       const m = /bytes=(\d+)-(\d+)/.exec(range) ?? /bytes=-(\d+)/.exec(range);
       if (!response.omitEtag) {
         headers['etag'] = etag;
@@ -77,7 +79,9 @@ describe('Zip functions (browser)', function() {
   });
   before(function(done) {
     server.listen(0, done);
-    global.fetch = async (url, options) => {
+    global.fetch = async (path, options) => {
+      const { port } = server.address();
+      const url = new URL(path, `http://localhost:${port}`);
       const res = await nodeFetch(url, options);
       // polyfill getReader()
       attachGetReader(res.body);
@@ -157,7 +161,7 @@ describe('Zip functions (browser)', function() {
   describe('#modifyZip', function() {
     it('should find files inside archive', async function() {
       const names = [];
-      const fileStream = await createHTTPStream(server, 'three-files.zip');
+      const fileStream = await createHTTPStream('/three-files.zip');
       const chunkedStream = createChunkyStream(fileStream, 1024);
       const outStream = modifyZip(chunkedStream, name => names.push(name));
       for await (const chunk of outStream) {}
@@ -168,7 +172,7 @@ describe('Zip functions (browser)', function() {
     })
     it('should work when chunk size is small', async function() {
       const names = [];
-      const fileStream = await createHTTPStream(server, 'three-files.zip');
+      const fileStream = await createHTTPStream('/three-files.zip');
       const chunkedStream = createChunkyStream(fileStream, 3);
       const outStream = modifyZip(chunkedStream, name => names.push(name));
       for await (const chunk of outStream) {}
@@ -178,7 +182,7 @@ describe('Zip functions (browser)', function() {
       expect(names).to.contains('three-files/malgorzata-socha.jpg');
     })
     it('should extract contents from small uncompressed file', async function() {
-      const fileStream = await createHTTPStream(server, 'three-files.zip');
+      const fileStream = await createHTTPStream('/three-files.zip');
       const chunkedStream = createChunkyStream(fileStream, 1024);
       let text = '';
       const outStream = modifyZip(chunkedStream, (name) => {
@@ -194,7 +198,7 @@ describe('Zip functions (browser)', function() {
       expect(text).to.contains('${placeholder}');
     })
     it('should remove file when transform function return null', async function() {
-      const fileStream = await createHTTPStream(server, 'three-files.zip');
+      const fileStream = await createHTTPStream('/three-files.zip');
       const chunkedStream = createChunkyStream(fileStream, 1024);
       const outStream1 = modifyZip(chunkedStream, (name) => {
         if (name === 'three-files/malgorzata-socha.jpg') {
@@ -212,7 +216,7 @@ describe('Zip functions (browser)', function() {
       expect(names).to.not.contains('three-files/malgorzata-socha.jpg');
     })
     it('should replace file contents', async function() {
-      const fileStream = await createHTTPStream(server, 'three-files.zip');
+      const fileStream = await createHTTPStream('/three-files.zip');
       const chunkedStream = createChunkyStream(fileStream, 1024);
       const replacement = 'wasabi donut';
       const outStream1 = modifyZip(chunkedStream, (name) => {
@@ -238,7 +242,7 @@ describe('Zip functions (browser)', function() {
       expect(text).to.contains(replacement);
     })
     it('should work with zip files with data descriptor', async function() {
-      const fileStream = await createHTTPStream(server, 'two-files-with-dd.zip');
+      const fileStream = await createHTTPStream('/two-files-with-dd.zip');
       const chunkedStream = createChunkyStream(fileStream, 1);
       const replacement = 'wasabi donut';
       const outStream1 = modifyZip(chunkedStream, (name) => {
@@ -264,7 +268,7 @@ describe('Zip functions (browser)', function() {
       expect(text).to.contains(replacement);
     })
     it('should replace contents of larger compressed file', async function() {
-      const fileStream = await createHTTPStream(server, 'three-files.zip');
+      const fileStream = await createHTTPStream('/three-files.zip');
       const chunkedStream = createChunkyStream(fileStream, 1024);
       const replacement = 'Road to Serfdom';
       const outStream1 = modifyZip(chunkedStream, (name) => {
@@ -292,7 +296,7 @@ describe('Zip functions (browser)', function() {
     })
     it('should find file with unicode name', async function() {
       const names = [];
-      const fileStream = await createHTTPStream(server, 'unicode.zip');
+      const fileStream = await createHTTPStream('/unicode.zip');
       const chunkedStream = createChunkyStream(fileStream, 1024);
       const outStream = modifyZip(chunkedStream, name => names.push(name));
       for await (const chunk of outStream) {}
@@ -321,7 +325,7 @@ describe('Zip functions (browser)', function() {
         }
       }
       variables['body_instruction_text'] = instructions;
-      const fileStream = await createHTTPStream(server, 'flyer-a4-portrait-simplex.pptx');
+      const fileStream = await createHTTPStream('/flyer-a4-portrait-simplex.pptx');
       const outStream = modifyZip(fileStream, (name) => {
         if (name === 'ppt/slides/slide1.xml') {
           return async (buffer) => {
@@ -340,7 +344,7 @@ describe('Zip functions (browser)', function() {
     })
     it('should throw when EOCD record is corrupted', async function() {
       const names = [];
-      const fileStream = await createHTTPStream(server, 'three-files-bad-eocd.zip');
+      const fileStream = await createHTTPStream('/three-files-bad-eocd.zip');
       const chunkedStream = createChunkyStream(fileStream, 1024);
       const outStream = modifyZip(chunkedStream, name => names.push(name));
       const promise = (async () => {
@@ -350,7 +354,7 @@ describe('Zip functions (browser)', function() {
     })
     it('should throw when CD record is corrupted', async function() {
       const names = [];
-      const fileStream = await createHTTPStream(server, 'three-files-bad-cdh.zip');
+      const fileStream = await createHTTPStream('/three-files-bad-cdh.zip');
       const chunkedStream = createChunkyStream(fileStream, 1024);
       const outStream = modifyZip(chunkedStream, name => names.push(name));
       const promise = (async () => {
@@ -443,7 +447,7 @@ describe('Zip functions (browser)', function() {
   describe('ZipFile', function() {
     describe('#open', function() {
       it('should load the central directory', async function() {
-        const url = createURL(server, 'three-files.zip');
+        const url = 'three-files.zip';
         const zip = new ZipFile(url);
         await zip.open();
         const cd = zip.centralDirectory;
@@ -452,7 +456,7 @@ describe('Zip functions (browser)', function() {
         expect(cd[1]).to.have.property('uncompressedSize', 32474);
       })
       it('should find the central directory when there is 1 extra byte', async function() {
-        const url = createURL(server, 'three-files-x1.zip');
+        const url = 'three-files-x1.zip';
         const zip = new ZipFile(url);
         await zip.open();
         const cd = zip.centralDirectory;
@@ -461,7 +465,7 @@ describe('Zip functions (browser)', function() {
         expect(cd[1]).to.have.property('uncompressedSize', 32474);
       })
       it('should find the central directory when there is 2 extra bytes', async function() {
-        const url = createURL(server, 'three-files-x2.zip');
+        const url = 'three-files-x2.zip';
         const zip = new ZipFile(url);
         await zip.open();
         const cd = zip.centralDirectory;
@@ -470,7 +474,7 @@ describe('Zip functions (browser)', function() {
         expect(cd[1]).to.have.property('uncompressedSize', 32474);
       })
       it('should find the central directory when there is 3 extra bytes', async function() {
-        const url = createURL(server, 'three-files-x3.zip');
+        const url = 'three-files-x3.zip';
         const zip = new ZipFile(url);
         await zip.open();
         const cd = zip.centralDirectory;
@@ -479,7 +483,7 @@ describe('Zip functions (browser)', function() {
         expect(cd[1]).to.have.property('uncompressedSize', 32474);
       })
       it('should find the central directory when there is 5 extra bytes', async function() {
-        const url = createURL(server, 'three-files-x5.zip');
+        const url = 'three-files-x5.zip';
         const zip = new ZipFile(url);
         await zip.open();
         const cd = zip.centralDirectory;
@@ -488,13 +492,13 @@ describe('Zip functions (browser)', function() {
         expect(cd[1]).to.have.property('uncompressedSize', 32474);
       })
       it('should throw when eof-of-central-directory record cannot be found', async function() {
-        const url = createURL(server, 'three-files-bad-eocd.zip');
+        const url = 'three-files-bad-eocd.zip';
         const zip = new ZipFile(url);
         const promise = zip.open();
         await expect(promise).to.eventually.be.rejected;
       })
       it('should throw when central-directory record is corrupted', async function() {
-        const url = createURL(server, 'three-files-bad-cdh.zip');
+        const url = 'three-files-bad-cdh.zip';
         const zip = new ZipFile(url);
         const promise = zip.open();
         await expect(promise).to.eventually.be.rejected;
@@ -502,13 +506,13 @@ describe('Zip functions (browser)', function() {
     })
     describe('#extractFile', function() {
       it('should throw if a file has not been opened yet', async function() {
-        const url = createURL(server, 'three-files.zip');
+        const url = 'three-files.zip';
         const zip = new ZipFile(url);
         const promise = zip.extractFile('three-files/LICENSE.txt');
         await expect(promise).to.eventually.be.rejected;
       })
       it('should throw if a local header is corrupted', async function() {
-        const url = createURL(server, 'three-files-bad-lh.zip');
+        const url = 'three-files-bad-lh.zip';
         const zip = new ZipFile(url);
         await zip.open();
         const promise = zip.extractFile('three-files/LICENSE.txt');
@@ -516,7 +520,7 @@ describe('Zip functions (browser)', function() {
         await zip.close();
       })
       it('should throw if a compressed size in CD is corrupted', async function() {
-        const url = createURL(server, 'three-files-bad-size.zip');
+        const url = 'three-files-bad-size.zip';
         const zip = new ZipFile(url);
         await zip.open();
         const promise = zip.extractFile('three-files/LICENSE.txt');
@@ -526,7 +530,7 @@ describe('Zip functions (browser)', function() {
     })
     describe('#extractTextFile', function() {
       it('should extract a text file', async function() {
-        const url = createURL(server, 'three-files.zip');
+        const url = 'three-files.zip';
         const zip = new ZipFile(url);
         await zip.open();
         const text = await zip.extractTextFile('three-files/LICENSE.txt');
@@ -534,7 +538,7 @@ describe('Zip functions (browser)', function() {
         expect(text).to.include('GNU');
       })
       it('should be able to retrieve file after modification', async function() {
-        const url = createURL(server, 'three-files.zip');
+        const url = 'three-files.zip';
         const zip = new ZipFile(url);
         await zip.open();
         // force etag change
@@ -544,7 +548,7 @@ describe('Zip functions (browser)', function() {
         expect(text).to.include('GNU');
       })
       it('should work when server does not return etag', async function() {
-        const url = createURL(server, 'three-files.zip');
+        const url = 'three-files.zip';
         const zip = new ZipFile(url);
         response.omitEtag = true;
         await zip.open();
@@ -553,7 +557,7 @@ describe('Zip functions (browser)', function() {
         expect(text).to.include('GNU');
       })
       it('should throw when there is a size mismatch', async function() {
-        const url = createURL(server, 'three-files.zip');
+        const url = 'three-files.zip';
         const zip = new ZipFile(url);
         await zip.open();
         response.truncateBody = -100;
@@ -562,7 +566,7 @@ describe('Zip functions (browser)', function() {
         await expect(promise).to.be.eventually.rejected;
       })
       it('should extract a text file with Unicode name', async function() {
-        const url = createURL(server, 'unicode.zip');
+        const url = 'unicode.zip';
         const zip = new ZipFile(url);
         await zip.open();
         const text = await zip.extractTextFile('szczęście.txt');
@@ -570,7 +574,7 @@ describe('Zip functions (browser)', function() {
         expect(text).to.include('szczęście');
       })
       it('should throw when file is not in archive', async function() {
-        const url = createURL(server, 'unicode.zip');
+        const url = 'unicode.zip';
         const zip = new ZipFile(url);
         await zip.open();
         await expect(zip.extractTextFile('cześć.txt')).to.eventually.be.rejected;
@@ -580,14 +584,8 @@ describe('Zip functions (browser)', function() {
   })
 })
 
-function createURL(server, filename) {
-  const { port } = server.address();
-  return `http://localhost:${port}/${filename}`;
-}
-
-async function createHTTPStream(server, filename) {
-  const url = createURL(server, filename);
-  const res = await fetch(url);
+async function createHTTPStream(path) {
+  const res = await fetch(path);
   const { status } = res;
   if (status === 200) {
     return res.body;

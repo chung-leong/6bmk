@@ -214,6 +214,12 @@ class ZipModifier extends php_user_filter {
     }
     $this->callback = $this->params;
   }
+
+  public function onClose() {
+    if ($this->callback) {
+      call_user_func($this->callback, null);
+    }
+  }
 }
 
 function unpack_or_throw($pattern, $subject, $index, $len) {

@@ -1,5 +1,4 @@
-import { createReadStream } from 'fs';
-import { modifyZip } from './zip.js';
+import { modifyZip } from './zip-browser.js';
 
 export async function createFlyer(options = {}) {
   const {
@@ -13,15 +12,17 @@ export async function createFlyer(options = {}) {
   } = options;
   if (typeof(haiku?.[Symbol.asyncIterator]) !== 'function') {
     throw new Error(`Missing haiku generator`);
-  }  
-  const path = (file) ? file : new URL(`../pptx/flyer-${paper}-${orientation}-${mode}.pptx`, import.meta.url).pathname;
-  const stream = createReadStream(path);
+  }
+  const url = (file) ? file : await getTemplatePath(paper, orientation, mode);
+  const res = await fetch(url);
+  const stream = res.body;
   return modifyZip(stream, (name) => {
     const haikuHash = {};
     // return function that modify the XML file
     if (/^ppt\/slides\/slide\d+.xml$/.test(name)) {
       return async (buffer) => {
-        const text = buffer.toString();
+        const decoder = new TextDecoder();
+        const text = decoder.decode(buffer);
         const vars = extractVariables(text);
         const variables = {};
         for (const varname of vars) {
@@ -29,13 +30,13 @@ export async function createFlyer(options = {}) {
           if (m = /^tab_\d+_heading$/.exec(varname)) {
             variables[varname] = address;
           } else if (m = /^tab_(\d+)_line_(\d+)$/.exec(varname)) {
-            const tab = m[1], line = m[2];
-            let lines = haikuHash[tab];
+            const tag = m[1], line = m[2];
+            let lines = haikuHash[tag];
             if (!lines) {
               // generate the haiku
               const { done, value } = await haiku.next();          
               if (!done) {
-                lines = haikuHash[tab] = value.split('\n');
+                lines = haikuHash[tag] = value.split('\n');
               }
             }
             if (lines) {
@@ -62,4 +63,16 @@ function extractVariables(text) {
     names.push(m[1]);
   }
   return names.sort();
+}
+
+async function getTemplatePath(paper, orientation, mode) {
+  if (process.env.NODE_ENV !== 'production') {
+    // ditto
+    if (typeof global === 'object' && global.global === global) {
+      return `/pptx/flyer-${paper}-${orientation}-${mode}.pptx`;
+    }
+  }
+  /* c8 ignore next 2 */
+  const m = await import(/* webpackMode: "eager" */ `./pptx/flyer-${paper}-${orientation}-${mode}.pptx`);
+  return m.default;  
 }

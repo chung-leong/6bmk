@@ -1,30 +1,32 @@
 <?php namespace cleong\sixbeermk;
 
 class Dictionary {
-  protected $path;
   protected $zip = null;
   protected $meta = null;
   protected $cache = [];
 
   function __construct($options = []) {
-    extract($options + [ 'locale' => 'en-US', 'size' => 'medium', 'file' => '' ]);
-    if ($file) {
-      $this->path = $file;
-    } else {
-      $this->path = __DIR__ . "/../dict/$locale-$size.zip";
-    }
+    extract($options + [ 
+      'locale' => 'en-US', 
+      'size' => 'medium', 
+      'file' => ''
+    ]);
+    $path = $file ?:  __DIR__ . "/../dict/$locale-$size.zip";
+    $this->zip = new ZipFile($path);
   }
 
   function __destruct() {
-    if ($this->zip) {
-      $this->zip->close();
-    }
+    $this->close();
   }
 
   public function open() {
-    $this->zip = new ZipFile($this->path);
     $this->zip->open();
     $this->meta = $this->zip->extractJSONFile('meta.json');
+  }
+
+  public function close() {
+    $this->zip->close();
+    $this->meta = null;
   }
 
   public function getWord($syllableCount, $index) {

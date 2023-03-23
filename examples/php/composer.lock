@@ -1,0 +1,67 @@
+{
+    "_readme": [
+        "This file locks the dependencies of your project to a known state",
+        "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
+        "This file is @generated automatically"
+    ],
+    "content-hash": "e238cbdae2ec813663dc97e938470827",
+    "packages": [
+        {
+            "name": "cleong/sixbeermk",
+            "version": "dev-main",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/6bmk/sixbeermk.git",
+                "reference": "ccfb621d9f30e29a1bb9a0bb533bdab54804525c"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/6bmk/sixbeermk/zipball/ccfb621d9f30e29a1bb9a0bb533bdab54804525c",
+                "reference": "ccfb621d9f30e29a1bb9a0bb533bdab54804525c",
+                "shasum": ""
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^8.5.23"
+            },
+            "default-branch": true,
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "cleong\\sixbeermk\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Chung Leong",
+                    "email": "chernyshevsky@hotmail.com"
+                }
+            ],
+            "description": "Random haiku generator",
+            "homepage": "https://github.com/chung-leong/6bmk#readme",
+            "keywords": [
+                "haiku",
+                "random"
+            ],
+            "support": {
+                "issues": "https://github.com/chung-leong/6bmk/issues",
+                "source": "https://github.com/6bmk/sixbeermk/tree/main"
+            },
+            "time": "2023-03-21T17:23:57+00:00"
+        }
+    ],
+    "packages-dev": [],
+    "aliases": [],
+    "minimum-stability": "dev",
+    "stability-flags": {
+        "cleong/sixbeermk": 20
+    },
+    "prefer-stable": false,
+    "prefer-lowest": false,
+    "platform": [],
+    "platform-dev": [],
+    "plugin-api-version": "2.3.0"
+}

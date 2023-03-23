@@ -3,7 +3,7 @@
     "description": "Random haiku generator",
     "type": "library",
     "require-dev": {
-        "phpunit/phpunit": "8.5"
+        "phpunit/phpunit": "^8.5.23"
     },
     "license": "MIT",
     "autoload": {
@@ -17,6 +17,14 @@
             "email": "chernyshevsky@hotmail.com"
         }
     ],
+    "keywords": [
+        "haiku",
+        "random"
+    ],
+    "support": {
+        "issues": "https://github.com/chung-leong/6bmk/issues"
+    },
+    "homepage": "https://github.com/chung-leong/6bmk#readme",
     "scripts": {
         "test": "phpunit",
         "coverage": "phpunit --coverage-text --coverage-html=./coverage/phpunit --whitelist ./src"

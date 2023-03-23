@@ -4,57 +4,47 @@ use PHPUnit\Framework\TestCase;
 use cleong\sixbeermk\HaikuGenerator;
 
 class HaikuGeneratorTest extends TestCase {
-  function testCreateRandomSentence() {
-    // should generate a random sentence of the correct length
-    $gen = new HaikuGenerator;
-    for ($i = 0; $i < 10; $i++) {
-      $sentence = invoke_protected($gen, 'createRandomSentence', 7);
-      $count = countSyllables($sentence);
-      $this->assertSame(7, $count);
-    }
-  }
-
   function testGenerate() {
     // should generate random haiku
     $known = "The west wind whispered,\nAnd touched the eyelids of spring:\nHer eyes, Primroses.";
     $control = isHaiku($known);
     $this->assertTrue($control);
 
-    $gen = new HaikuGenerator;
-    for ($i = 0; $i < 10; $i++) {
-      $haiku = $gen->generate();
+    $count = 0;
+    foreach(HaikuGenerator::generate() as $haiku) {
       $result = isHaiku($haiku);
       $this->assertTrue($result);
+      $count++;
+      if ($count >= 10) {
+        break;
+      }
     }
   }
 
-  function testHash() {
-    // should generate a string with 40 characters
+  function testNormalize() {
     $base = "the west wind whispered\nand touched the eyelids of spring\nher eyes Primroses";
-    $hash = HaikuGenerator::hash($base);
-    $this->assertSame(40, strlen($hash));
 
     // should generate the same hash regardless of cases
     $test = "The west wind whispered\nAnd touched the eyelids of spring\nHer eyes Primroses";
-    $hash1 = HaikuGenerator::hash($base);
-    $hash2 = HaikuGenerator::hash($test);
-    $this->assertSame($hash1, $hash2);
+    $text1 = HaikuGenerator::normalize($base);
+    $text2 = HaikuGenerator::normalize($test);
+    $this->assertSame($text1, $text2);
 
     // should generate the same hash regardless of punctuations
     $test = "The west wind whispered,\nAnd touched the eyelids of spring:\nHer eyes, Primroses";
-    $hash1 = HaikuGenerator::hash($base);
-    $hash2 = HaikuGenerator::hash($test);
-    $this->assertSame($hash1, $hash2);
+    $text1 = HaikuGenerator::normalize($base);
+    $text2 = HaikuGenerator::normalize($test);
+    $this->assertSame($text1, $text2);
 
     // should generate the same hash when there are extra linefeeds
     $test = "The west wind whispered,\nAnd touched the eyelids of spring:\nHer eyes, Primroses\n\n\n";
-    $hash1 = HaikuGenerator::hash($base);
-    $hash2 = HaikuGenerator::hash($test);
-    $this->assertSame($hash1, $hash2);
+    $text1 = HaikuGenerator::normalize($base);
+    $hash2 = HaikuGenerator::normalize($test);
+    $this->assertSame($text1, $text2);
 
     // should throw if argument is not a string
     $error = catch_error(function() {
-      HaikuGenerator::hash(null);
+      HaikuGenerator::normalize(null);
     });
     $this->assertInstanceOf(Exception::class, $error);
   }

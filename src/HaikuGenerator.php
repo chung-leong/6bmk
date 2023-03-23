@@ -4,29 +4,39 @@ use \Exception;
 
 class HaikuGenerator {
   protected $dict = null;
-  protected $options;
 
-  function __construct($options = []) {
-    $this->options = $options;
+  public static function generate($options = []) {
+    $instance = new static($options);
+    return $instance->__generate();
   }
 
-  public function generate() {
-    $sentences = [];
-    for ($i = 0; $i < 3; $i++) {
-      // a haiku has 5-7-5 structure
-      $sentence = $this->createRandomSentence(($i === 1) ? 7 : 5);
-      $sentences[] = ucfirst($sentence);
-    }
-    return implode("\n", $sentences);
-  }
-
-  public static function hash($haiku, $algo = 'sha1') {
+  public static function normalize($haiku) {
     if (gettype($haiku) !== 'string') {
       throw new Exception('Haiku must be a string');
     }
     // replace sequence of non-alphanumeric characters (including whitespace) with a single space
-    $filtered = trim(preg_replace('/\W+/', ' ', strtolower($haiku)));
-    return hash($algo, $filtered);
+    return trim(preg_replace('/\W+/', ' ', strtolower($haiku)));
+  }
+
+  protected function __construct($options) {
+    $this->dict = new Dictionary($options);
+  }
+
+  protected function __generate() {
+    $this->dict->open();
+    try {
+      for (;;) {
+        $sentences = [];
+        for ($i = 0; $i < 3; $i++) {
+          // a haiku has 5-7-5 structure
+          $sentence = $this->createRandomSentence(($i === 1) ? 7 : 5);
+          $sentences[] = ucfirst($sentence);
+        }
+        yield implode("\n", $sentences);    
+      }
+    } finally {
+      $this->dict->close();
+    }
   }
 
   protected function createRandomSentence($syllableCount) {
@@ -48,10 +58,6 @@ class HaikuGenerator {
   }
 
   protected function pickRandomWord($maxSyllableCount) {
-    if (!$this->dict) {
-      $this->dict = new Dictionary($this->options);
-      $this->dict->open();
-    }
     // see how many words in total we're considering
     $total = 0;
     for ($syllables = 1; $syllables <= $maxSyllableCount; $syllables++) {

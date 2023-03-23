@@ -1,4 +1,4 @@
-import { Dictionary } from './dictionary.js';
+import { Dictionary } from './dictionary-browser.js';
 
 export async function *generateHaiku(options = {}) {
   const dict = new Dictionary(options);
