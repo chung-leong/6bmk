@@ -1,7 +1,6 @@
 {
     "name": "cleong/sixbeermk",
     "description": "Random haiku generator",
-    "version": "0.0.1",
     "type": "library",
     "require-dev": {
         "phpunit/phpunit": "^8.5.23"
