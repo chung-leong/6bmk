@@ -60,9 +60,9 @@ async function *getAccessHaiku(db, flyerId, locale) {
 }
 ```
 
-[`generateHaiku`](./doc/generateHaiku.md) returns an async generator. Generally you would 
+[`generateHaiku`](./doc/generateHaiku.md#readme) returns an async generator. Generally you would 
 save its output to a database so you can verify later that a user has entered a correct 
-haiku. [`normalizeHaiku`](./doc/normalizeHaiku.md) removes punctuations, normalizes
+haiku. [`normalizeHaiku`](./doc/normalizeHaiku.md#readme) removes punctuations, normalizes
 whitespaces, and converts characters to lowercase. These steps ensure we would get the 
 same hash despite minor differences.
 
@@ -80,7 +80,7 @@ async function createDownload(db, flyerId) {
 }
 ```
 
-[`createFlyer`](./doc/createFlyer.md) returns a Node 
+[`createFlyer`](./doc/createFlyer.md#readme) returns a Node 
 [Readable Stream](https://nodejs.org/api/stream.html#readable-streams). If you're using 
 [Fastify](https://www.fastify.io/), you can simply return the stream in your handler. 
 If you're using [Express](https://expressjs.com/), you would need to pipe the stream 
@@ -117,10 +117,10 @@ function get_access_haiku($db, $flyer_id, $locale) {
 }
 ```
 
-[`HaikuGenerator::generate`](./doc/HaikuGenerator.generate.md) returns a generator. 
+[`HaikuGenerator::generate`](./doc/HaikuGenerator.md#readme) returns a generator. 
 Generally you would save its output to a database so you can verify later that a user 
 has entered a correct haiku. 
-[`HaikuGenerator::normalize`](./doc/HaikuGenerator.normalize.md) removes punctuations, 
+[`HaikuGenerator::normalize`](./doc/HaikuGenerator.md#readme) removes punctuations, 
 normalizes whitespaces, and converts characters to lowercase. These steps ensure we 
 would get the same hash despite minor differences.
 
@@ -148,7 +148,7 @@ function create_download($db, $flyer_id) {
 }
 ```
 
-[`FlyerGenerator::generate`](./doc/FlyerGenerator.generate.md) returns a stream.
+[`FlyerGenerator::generate`](./doc/FlyerGenerator.md#readme) returns a stream.
 Use [`fpassthru`](https://www.php.net/manual/en/function.fpassthru.php) to send 
 the file content to the browser. You should set the appriopriate HTTP headers 
 beforehand so that the response is handled as a download.
