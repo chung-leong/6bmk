@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 import { basename } from 'path';
 import { Dictionary } from '../src/dictionary.js';
 import { availableLocales, availableSizes } from './create-dict.js';

@@ -152,3 +152,29 @@ function create_download($db, $flyer_id) {
 Use [`fpassthru`](https://www.php.net/manual/en/function.fpassthru.php) to send 
 the file content to the browser. You should set the appriopriate HTTP headers 
 beforehand so that the response is handled as a download.
+
+## Number of possible haiku
+
+By default, the small en-US dictionary is used during haiku generation. Its content
+is as follows:
+
+```sh
+1-syllable words: 5956
+2-syllable words: 12443
+3-syllable words: 8549
+4-syllable words: 3892
+5-syllable words: 1260
+6-syllable words: 191
+7-syllable words: 15
+```
+
+The number of possible haiku is thus `1.5009341463235493e+64`. Run `calc-combo.js` 
+in the `tools` folder to see what results from the larger dictionaries.
+
+## Acknowledgement
+
+The word lists used by this library come from the Spell Checker Oriented Word Lists
+database (http://wordlist.aspell.net/).
+
+The CMU Pronouncing Dictionary is used to determine the number of syllable 
+in each word (https://github.com/aparrish/pronouncingjs).
