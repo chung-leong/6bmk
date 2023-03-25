@@ -200,7 +200,7 @@ export function modifyZip(stream, cb) {
     let transformedFileAttributes = {};
     let omitDataDescriptor = false;
     let dataDescriptorSignature = null;
-    for await (const chunkBuffer of stream) {
+    for await (const chunkBuffer of iterateStream(stream)) {
       let chunk = new Uint8Array(chunkBuffer);
       if (leftOver) {
         chunk = concatArrays(leftOver, chunk);
@@ -519,6 +519,28 @@ function createStream(generator) {
       controller.close();
     }
   });  
+}
+
+export async function *iterateStream(stream) {
+  if (typeof(stream.getReader) === 'function') {
+    const reader = stream.getReader();
+    try {
+      for (;;) {
+        const { done, value } = await reader.read()
+        if (done) {
+          break;
+        } else {
+          yield value;
+        }
+      }
+    } finally {
+      await reader.cancel();
+    }
+  } else {
+    for await (const chunk of stream) {
+      yield chunk;
+    }
+  }
 }
 
 function getArraySlice(buffer, index, length) {

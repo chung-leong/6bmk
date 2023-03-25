@@ -11,7 +11,7 @@ export class Dictionary {
   async open() {
     const {
       locale = 'en-US',
-      size = 'medium',
+      size = 'small',
       file,
     } = this.options;
     const path = (file) ? file : new URL(`../dict/${locale}-${size}.zip`, import.meta.url).pathname;

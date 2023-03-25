@@ -3,11 +3,49 @@
   flex-direction: column;
   align-items: center;
   width: 100%;
+  font-family: Arial, Helvetica, sans-serif;
 }
 
-pre {
-  width: 30em;
+.HaikuList {
+  padding-left: 0;
+}
+
+.HaikuList li {
+  min-width: 25em;
   font-family: 'Courier New', monospace;
   font-size: 14pt;
   text-align: left;
+  white-space: pre;
+  list-style-type: none;
+  margin-top: 1em;
+}
+
+.FlyerDownload {
+  text-align: center;
+  margin-bottom: 1em;
+}
+
+.FlyerDownload button {
+  margin: 1em 1em 1em 1em;
+  font-size: 1.8em;
+}
+
+.FlyerDownload label {
+  margin-left: 0.5em;
+}   
+
+.FlyerDownload a {
+  visibility: collapse;
+}
+
+@media screen and (max-width: 400px) {
+  .HaikuList li {
+    min-width: 0;
+    font-size: 12pt;
+  }
+
+  .FlyerDownload label {
+    display: block;
+    margin-bottom: 0.5em;
+  }   
 }

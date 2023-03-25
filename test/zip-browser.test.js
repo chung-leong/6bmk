@@ -601,6 +601,7 @@ function attachGetReader(stream) {
     const iterator = f.call(this);
     return {
       read: () => iterator.next(),
+      cancel: () => {},
     };
   };
 }

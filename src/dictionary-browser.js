@@ -11,7 +11,7 @@ export class Dictionary {
   async open() {
     const {
       locale = 'en-US',
-      size = 'medium',
+      size = 'small',
       file,
     } = this.options;
     const path = (file) ? file : await getDictionaryPath(locale, size);

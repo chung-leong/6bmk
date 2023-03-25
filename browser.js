@@ -9,4 +9,5 @@ export {
   modifyZip,
   createZip,
   ZipFile,
+  iterateStream,
 } from './src/zip-browser.js';

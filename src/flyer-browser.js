@@ -73,6 +73,6 @@ async function getTemplatePath(paper, orientation, mode) {
     }
   }
   /* c8 ignore next 2 */
-  const m = await import(/* webpackMode: "eager" */ `./pptx/flyer-${paper}-${orientation}-${mode}.pptx`);
+  const m = await import(/* webpackMode: "eager" */ `../pptx/flyer-${paper}-${orientation}-${mode}.pptx`);
   return m.default;  
 }
