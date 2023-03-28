@@ -575,7 +575,7 @@ class Dictionary {
       size = 'small',
       file,
     } = this.options;
-    const path = (file) ? file : new URL(`../dict/${locale}-${size}.zip`, (typeof document === 'undefined' ? require('u' + 'rl').pathToFileURL(__filename).href : (document.currentScript && document.currentScript.src || new URL('index.cjs', document.baseURI).href))).pathname;
+    const path = (file) ? file : new URL(`../dict/${locale}-${size}.zip`, new URL('/home/cleong/6bmk/src/dictionary.js', 'file:///').href).pathname;
     this.zip = new ZipFile(path);
     await this.zip.open();
     this.meta = await this.zip.extractJSONFile('meta.json');
@@ -685,10 +685,10 @@ async function createFlyer(options = {}) {
   if (typeof(haiku?.[Symbol.asyncIterator]) !== 'function') {
     throw new Error(`Missing haiku generator`);
   }  
-  const path = (file) ? file : new URL(`../pptx/flyer-${paper}-${orientation}-${mode}.pptx`, (typeof document === 'undefined' ? require('u' + 'rl').pathToFileURL(__filename).href : (document.currentScript && document.currentScript.src || new URL('index.cjs', document.baseURI).href))).pathname;
+  const path = (file) ? file : new URL(`../pptx/flyer-${paper}-${orientation}-${mode}.pptx`, new URL('/home/cleong/6bmk/src/flyer.js', 'file:///').href).pathname;
   const stream = fs.createReadStream(path);
+  const haikuHash = {};
   return modifyZip(stream, (name) => {
-    const haikuHash = {};
     // return function that modify the XML file
     if (/^ppt\/slides\/slide\d+.xml$/.test(name)) {
       return async (buffer) => {
@@ -732,7 +732,11 @@ function extractVariables(text) {
   while (m = re.exec(text)) {
     names.push(m[1]);
   }
-  return names.sort();
+  const number = (s) => {
+    const m = /\d+/.exec(s);
+    return (m) ? parseInt(m[0]) : 0;
+  };
+  return names.sort((a, b) => number(a) - number(b));
 }
 
 exports.ZipFile = ZipFile;
