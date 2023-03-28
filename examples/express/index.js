@@ -167,4 +167,6 @@ async function createDownload(db, flyerId) {
     res.redirect('/');
   });
   await new Promise(r => app.listen(8080, r));
+  console.log(`Listening on at http://localhost:8080`);
+  console.log(`Press Ctrl-C to quit.`);
 })();

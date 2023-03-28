@@ -2,5 +2,8 @@
     "require": {
         "cleong/sixbeermk": "dev-main"
     },
-    "minimum-stability": "dev"
+    "minimum-stability": "dev",
+    "scripts": {
+        "start": "php -S index.php"
+    }
 }

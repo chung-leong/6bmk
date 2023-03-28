@@ -169,4 +169,6 @@ async function createDownload(db, flyerId) {
     reply.redirect('/');
   });
   await fastify.listen({ host: 'localhost', port: 8080 });
+  console.log(`Listening on http://localhost:8080`);
+  console.log(`Press Ctrl-C to quit.`);
 })();

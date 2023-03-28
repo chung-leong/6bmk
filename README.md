@@ -30,9 +30,6 @@ PHP
 composer require cleong/sixbeermk
 ```
 
-PHP does not allow namespaces starting with digits. This is why a fuller name of the 
-project is used.
-
 ## Usage - Node.js
 
 ### Generating haiku
@@ -87,6 +84,9 @@ If you're using [Express](https://expressjs.com/), you would need to pipe the st
 into `res`. In both cases you should set the appriopriate HTTP headers so the response 
 is handled as a download by the browser.
 
+For a working example, check out the code in [examples/fastify](./examples/fastify#readme)
+or [examples/express](./examples/express#readme).
+
 ## Usage - PHP
 
 ### Generating haiku
@@ -123,6 +123,8 @@ has entered a correct haiku.
 [`HaikuGenerator::normalize`](./doc/HaikuGenerator.md#readme) removes punctuations, 
 normalizes whitespaces, and converts characters to lowercase. These steps ensure we 
 would get the same hash despite minor differences.
+
+For a working example, check out the code in [examples/php](./examples/php#readme).
 
 ### Generating flyer
 
