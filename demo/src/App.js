@@ -50,6 +50,7 @@ function FlyerDownload({ list }) {
       }
       // generate extra ones if the template requires more
       for await (const haiku of generateHaiku()) {
+        list.push(haiku);
         yield haiku;
       }
     })();

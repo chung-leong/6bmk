@@ -16,8 +16,8 @@ export async function createFlyer(options = {}) {
   const url = (file) ? file : await getTemplatePath(paper, orientation, mode);
   const res = await fetch(url);
   const stream = res.body;
+  const haikuHash = {};
   return modifyZip(stream, (name) => {
-    const haikuHash = {};
     // return function that modify the XML file
     if (/^ppt\/slides\/slide\d+.xml$/.test(name)) {
       return async (buffer) => {
@@ -62,7 +62,11 @@ function extractVariables(text) {
   while (m = re.exec(text)) {
     names.push(m[1]);
   }
-  return names.sort();
+  const number = (s) => {
+    const m = /\d+/.exec(s);
+    return (m) ? parseInt(m[0]) : 0;
+  };
+  return names.sort((a, b) => number(a) - number(b));
 }
 
 async function getTemplatePath(paper, orientation, mode) {
