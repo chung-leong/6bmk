@@ -14,7 +14,7 @@ function get_access_haiku($db, $flyer_id, $locale) {
   }
   $insert = $db->prepare("INSERT INTO haiku (flyer_id, text, hash) VALUES(?, ?, ?)");
   foreach(HaikuGenerator::generate([ 'locale' => $locale ]) as $text) {
-    $hash = sha1($text);
+    $hash = sha1(HaikuGenerator::normalize($text));
     $insert->bindValue(1, $flyer_id);
     $insert->bindValue(2, $text);
     $insert->bindValue(3, $hash);

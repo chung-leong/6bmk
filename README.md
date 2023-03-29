@@ -87,6 +87,12 @@ is handled as a download by the browser.
 For a working example, check out the code in [examples/fastify](./examples/fastify#readme)
 or [examples/express](./examples/express#readme).
 
+### CommonJS
+
+```js
+const { createFlyer, generateHaiku } = require('6bmk/cjs');
+```
+
 ## Usage - PHP
 
 ### Generating haiku

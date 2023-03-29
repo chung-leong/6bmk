@@ -4,6 +4,6 @@
     },
     "minimum-stability": "dev",
     "scripts": {
-        "start": "php -S index.php"
+        "start": "php -S localhost:8080"
     }
 }
