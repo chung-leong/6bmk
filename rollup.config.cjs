@@ -12,10 +12,12 @@ module.exports = {
     'fs/promises',
     'stream',
     'zlib',
+    'url',
   ],
   plugins: [{
-    resolveImportMeta(prop, {moduleId}) {
-      const url = `new URL('${path.resolve(__filename, moduleId)}', 'file:///').href`;
+    resolveImportMeta(prop, { moduleId }) {
+      const relPath = path.relative(__dirname, moduleId);
+      const url = `new URL(${JSON.stringify(relPath)}, require('url').pathToFileURL(__filename)).href`;
       if (prop === 'url') {
         return url;
       }

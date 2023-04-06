@@ -575,7 +575,7 @@ class Dictionary {
       size = 'small',
       file,
     } = this.options;
-    const path = (file) ? file : new URL(`../dict/${locale}-${size}.zip`, new URL('/home/cleong/6bmk/src/dictionary.js', 'file:///').href).pathname;
+    const path = (file) ? file : new URL(`../dict/${locale}-${size}.zip`, new URL("src/dictionary.js", require('url').pathToFileURL(__filename)).href).pathname;
     this.zip = new ZipFile(path);
     await this.zip.open();
     this.meta = await this.zip.extractJSONFile('meta.json');
@@ -685,7 +685,7 @@ async function createFlyer(options = {}) {
   if (typeof(haiku?.[Symbol.asyncIterator]) !== 'function') {
     throw new Error(`Missing haiku generator`);
   }  
-  const path = (file) ? file : new URL(`../pptx/flyer-${paper}-${orientation}-${mode}.pptx`, new URL('/home/cleong/6bmk/src/flyer.js', 'file:///').href).pathname;
+  const path = (file) ? file : new URL(`../pptx/flyer-${paper}-${orientation}-${mode}.pptx`, new URL("src/flyer.js", require('url').pathToFileURL(__filename)).href).pathname;
   const stream = fs.createReadStream(path);
   const haikuHash = {};
   return modifyZip(stream, (name) => {
